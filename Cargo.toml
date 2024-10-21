@@ -2,5 +2,14 @@
 name = "rust-template"
 version = "0.1.0"
 edition = "2021"
+authors = ["Minhu Wang <minhuw@hey.com>"]
+license = "LGPL-2.1-only OR BSD-2-Clause"
 
 [dependencies]
+anyhow = "1.0.90"
+libbpf-rs = "0.24.6"
+neli = "0.6.4"
+
+[build-dependencies]
+libbpf-cargo = "0.24.6"
+vmlinux = { version = "0.0", git = "https://github.com/libbpf/vmlinux.h.git", rev = "a9c092aa771310bf8b00b5018f7d40a1fdb6ec82" }
