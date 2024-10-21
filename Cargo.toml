@@ -9,8 +9,8 @@ license = "LGPL-2.1-only OR BSD-2-Clause"
 anyhow = "1.0.90"
 chrono = "0.4.38"
 clap = { version = "4.5.20", features = ["derive"] }
-libbpf-rs = "0.24.6"
+libbpf-rs = { version = "0.24.6" }
 
 [build-dependencies]
 libbpf-cargo = "0.24.6"
-vmlinux = { version = "0.0", git = "https://github.com/libbpf/vmlinux.h.git", rev = "a9c092aa771310bf8b00b5018f7d40a1fdb6ec82" }
+vmlinux = { version = "0.0", git = "https://github.com/libbpf/vmlinux.h.git", rev = "172793d6a409d98d1cfb843c80df73733e9f832f" }
