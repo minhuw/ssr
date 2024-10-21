@@ -1,6 +1,10 @@
-use libbpf_rs::PrintLevel;
+use chrono::{DateTime, Local, TimeZone};
+use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
+use libbpf_rs::{Map, MapCore, MapFlags, PrintLevel, RingBufferBuilder};
+use std::collections::HashMap;
 use std::error::Error;
 use std::mem::MaybeUninit;
+use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
 mod tcpbuffer {
@@ -9,10 +13,136 @@ mod tcpbuffer {
         "/src/bpf/tcpbuffer.skel.rs"
     ));
 }
-use libbpf_rs::skel::OpenSkel;
-use libbpf_rs::skel::Skel;
-use libbpf_rs::skel::SkelBuilder;
+
 use tcpbuffer::*;
+
+#[repr(C)]
+struct BufferMessage {
+    pid: u32,
+    rx_buffer: u32,
+    timestamp_ns: u64,
+    socket_cookie: u64,
+    comm: [u8; 16],
+}
+
+// Define the FiveTuple struct
+#[derive(Debug, Clone)]
+struct FiveTuple {
+    saddr: IpAddr,
+    daddr: IpAddr,
+    sport: u16,
+    dport: u16,
+    protocol: u8,
+}
+
+impl std::fmt::Display for FiveTuple {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{} -> {}:{} ({})",
+            self.saddr, self.sport, self.daddr, self.dport, self.protocol
+        )
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+struct EbpfFiveTuple {
+    saddr: u32,
+    daddr: u32,
+    sport: u16,
+    dport: u16,
+    protocol: u8,
+}
+
+fn get_boot_time_ns() -> Result<u64, Box<dyn std::error::Error>> {
+    let stat_contents = std::fs::read_to_string("/proc/stat")?;
+    for line in stat_contents.lines() {
+        if line.starts_with("btime ") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() == 2 {
+                let btime = parts[1].parse::<u64>()?;
+                // Convert btime (seconds since epoch) to nanoseconds
+                return Ok(btime * 1_000_000_000);
+            }
+        }
+    }
+    Err("Could not find btime in /proc/stat".into())
+}
+
+fn get_five_tuple_from_map(sock_info_map: &Map, sock_cookie: u64) -> Result<FiveTuple, ()> {
+    match sock_info_map.lookup(&sock_cookie.to_ne_bytes(), MapFlags::ANY) {
+        Ok(Some(value)) => {
+            let ebpf_tuple =
+                unsafe { std::ptr::read_unaligned(value.as_ptr() as *const EbpfFiveTuple) };
+            let saddr = IpAddr::V4(Ipv4Addr::from(u32::from_be(ebpf_tuple.saddr)));
+            let daddr = IpAddr::V4(Ipv4Addr::from(u32::from_be(ebpf_tuple.daddr)));
+            let five_tuple = FiveTuple {
+                saddr,
+                daddr,
+                sport: ebpf_tuple.sport,
+                dport: ebpf_tuple.dport,
+                protocol: ebpf_tuple.protocol,
+            };
+            Ok(five_tuple)
+        }
+        Ok(None) | Err(_) => Err(()),
+    }
+}
+
+fn handle_event(
+    data: &[u8],
+    boot_time_ns: u64,
+    socket_map: &mut HashMap<u64, FiveTuple>,
+    sock_info_map: &Map,
+) -> i32 {
+    if data.len() < std::mem::size_of::<BufferMessage>() {
+        eprintln!("Data size mismatch");
+        return 0;
+    }
+
+    // Cast the data to our Data struct
+    let event = unsafe { &*(data.as_ptr() as *const BufferMessage) };
+
+    let absolute_timestamp_ns = boot_time_ns + event.timestamp_ns;
+
+    let naive_datetime = DateTime::from_timestamp(
+        (absolute_timestamp_ns / 1_000_000_000) as i64,
+        (absolute_timestamp_ns % 1_000_000_000) as u32,
+    )
+    .unwrap_or_default()
+    .naive_utc();
+
+    // Convert to Local datetime
+    let datetime: DateTime<Local> = Local.from_utc_datetime(&naive_datetime);
+
+    let sock_cookie: u64 = event.socket_cookie;
+
+    let five_tuple = {
+        // Check if the five-tuple is already in the user space cache
+        if socket_map.get(&sock_cookie).is_none() {
+            if let Ok(five_tuple) = get_five_tuple_from_map(sock_info_map, sock_cookie) {
+                // Cache the five-tuple
+                socket_map.insert(sock_cookie, five_tuple.clone());
+            }
+        }
+
+        socket_map.get(&sock_cookie)
+    };
+
+    if five_tuple.is_some() {
+        println!(
+            "[{}] Timestamp: {}, Process: {} ({}), rx buffer size: {}",
+            five_tuple.unwrap(),
+            datetime.format("%Y-%m-%d %H:%M:%S%.6f"),
+            String::from_utf8_lossy(&event.comm),
+            event.pid,
+            event.rx_buffer
+        );
+    }
+
+    0
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Optional: Set up logging from libbpf
@@ -25,15 +155,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut skel = open_skel.load()?;
     skel.attach()?;
 
-    println!("kprobe attached. Monitoring events...");
+    println!("eBPF attached. Monitoring events...");
 
-    // Keep the application running
+    let mut socket_map: HashMap<u64, FiveTuple> = HashMap::new();
+    let sock_info_map = skel.maps.sock_info_map;
+
+    let boot_time_ns = get_boot_time_ns()?;
+
+    let mut builder = RingBufferBuilder::new();
+    builder.add(&skel.maps.events, move |data| {
+        handle_event(data, boot_time_ns, &mut socket_map, &sock_info_map)
+    })?;
+    let ringbuf = builder.build()?;
+
     loop {
-        // Your user-space logic here
-        std::thread::sleep(Duration::from_secs(1));
+        ringbuf.poll(Duration::from_millis(100))?;
     }
-
-    // The BPF programs are detached automatically when `skel` goes out of scope
 }
 
 fn libbpf_print_fn(level: PrintLevel, msg: std::string::String) {

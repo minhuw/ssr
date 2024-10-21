@@ -1,5 +1,5 @@
 [package]
-name = "rust-template"
+name = "ssr"
 version = "0.1.0"
 edition = "2021"
 authors = ["Minhu Wang <minhuw@hey.com>"]
@@ -7,6 +7,7 @@ license = "LGPL-2.1-only OR BSD-2-Clause"
 
 [dependencies]
 anyhow = "1.0.90"
+chrono = "0.4.38"
 libbpf-rs = "0.24.6"
 neli = "0.6.4"
 
