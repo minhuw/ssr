@@ -12,6 +12,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libelf-dev
+          version: 1.0
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --all-features
 
@@ -22,6 +26,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libelf-dev
+          version: 1.0
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test
 
