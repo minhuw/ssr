@@ -1,8 +1,15 @@
 {
     "name": "Rust Dev Box",
-    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
     "features": {
         "ghcr.io/devcontainers/features/rust:1": {},
         "ghcr.io/minhuw/devcontainers/ubuntu-nix:latest": {}
+    },
+    "mounts": ["source=/sys/fs/bpf,target=/sys/fs/bpf,type=bind"],
+    "runArgs": ["--privileged"],
+    "containerEnv": {
+        "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER": "sudo -E"
     }
 }
