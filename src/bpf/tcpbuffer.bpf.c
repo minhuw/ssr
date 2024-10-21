@@ -72,6 +72,7 @@ int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
 
   struct buffer_message_t *data =
       bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+
   if (!data) {
     return 0;
   }

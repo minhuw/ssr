@@ -1,8 +1,11 @@
 use chrono::{DateTime, Local, TimeZone};
+use clap::Parser;
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
 use libbpf_rs::{Map, MapCore, MapFlags, PrintLevel, RingBufferBuilder};
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::File;
+use std::io::Write;
 use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
@@ -95,6 +98,8 @@ fn handle_event(
     boot_time_ns: u64,
     socket_map: &mut HashMap<u64, FiveTuple>,
     sock_info_map: &Map,
+    result_file: &mut File,
+    verbose: bool,
 ) -> i32 {
     if data.len() < std::mem::size_of::<BufferMessage>() {
         eprintln!("Data size mismatch");
@@ -131,22 +136,51 @@ fn handle_event(
     };
 
     if five_tuple.is_some() {
-        println!(
-            "[{}] Timestamp: {}, Process: {} ({}), rx buffer size: {}",
-            five_tuple.unwrap(),
-            datetime.format("%Y-%m-%d %H:%M:%S%.6f"),
+        if verbose {
+            println!(
+                "[{}] Timestamp: {}, Process: {} ({}), rx buffer size: {}",
+                five_tuple.unwrap(),
+                datetime.format("%+"),
+                String::from_utf8_lossy(&event.comm),
+                event.pid,
+                event.rx_buffer
+            );
+        }
+
+        let _ = result_file.write_fmt(format_args!(
+            "{},{},{},{}\n",
+            datetime.format("%+"),
+            event.socket_cookie,
             String::from_utf8_lossy(&event.comm),
-            event.pid,
-            event.rx_buffer
-        );
+            event.rx_buffer,
+        ));
     }
 
     0
 }
 
+#[derive(Parser, Debug)]
+#[command(
+    author = "Your Name <youremail@example.com>",
+    version = "1.0",
+    about = "An example CLI using clap",
+    long_about = None
+)]
+struct Args {
+    /// Number of times to greet
+    #[arg(short, long, default_value = "tcpbuffer.csv")]
+    result: String,
+
+    #[arg(short, long, default_value = "false")]
+    verbose: bool,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    let args = Args::parse();
+
     // Optional: Set up logging from libbpf
     libbpf_rs::set_print(Some((PrintLevel::Debug, libbpf_print_fn)));
+    let mut result_file = File::create(args.result)?;
 
     // Load and open the BPF application
     let skel_builder = TcpbufferSkelBuilder::default();
@@ -155,6 +189,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut skel = open_skel.load()?;
     skel.attach()?;
 
+    result_file.write_all("timestamp,pid,comm,rx_buffer\n".as_bytes())?;
     println!("eBPF attached. Monitoring events...");
 
     let mut socket_map: HashMap<u64, FiveTuple> = HashMap::new();
@@ -164,7 +199,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut builder = RingBufferBuilder::new();
     builder.add(&skel.maps.events, move |data| {
-        handle_event(data, boot_time_ns, &mut socket_map, &sock_info_map)
+        handle_event(
+            data,
+            boot_time_ns,
+            &mut socket_map,
+            &sock_info_map,
+            &mut result_file,
+            args.verbose,
+        )
     })?;
     let ringbuf = builder.build()?;
 
