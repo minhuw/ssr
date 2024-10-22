@@ -7,6 +7,9 @@
 
 #define PRINTK_DEBUG 0
 
+const volatile __u16 tgt_src_port = 0;
+const volatile __u16 tgt_dst_port = 0;
+
 struct five_tuple_t {
   __u32 saddr;   // Source IP address
   __u32 daddr;   // Destination IP address
@@ -54,8 +57,25 @@ int store_five_tuple(struct sock *sk, __u64 cookie) {
   return 0;
 }
 
+int filter_conn(struct sock *sk) {
+  __u16 src_port = sk->__sk_common.skc_num;
+  __u16 dst_port = sk->__sk_common.skc_dport;
+
+  bpf_printk("src port: %u, dst port: %u, target src port: %u, target dst port: %u\n",
+            src_port, dst_port, tgt_src_port, tgt_dst_port);
+
+  if (((src_port == tgt_src_port) || (tgt_src_port == 0)) &&
+      ((dst_port == tgt_dst_port) || (tgt_dst_port == 0))) {
+    return 1;
+  }
+  return 0;
+}
+
 SEC("fexit/tcp_rcv_established")
 int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
+  if (!filter_conn(sk)) {
+    return 0;
+  }
 
   struct tcp_sock *tp = (struct tcp_sock *)sk;
   __u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);
@@ -91,6 +111,10 @@ int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len) {
+
+  if (!filter_conn(sk)) {
+    return 0;
+  }
 
   struct tcp_sock *tp = (struct tcp_sock *)sk;
   __u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);

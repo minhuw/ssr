@@ -173,6 +173,12 @@ struct Args {
 
     #[arg(short, long, default_value = "false")]
     verbose: bool,
+
+    #[arg(short, long, default_value = "0")]
+    src_port: u16,
+
+    #[arg(short, long, default_value = "0")]
+    dst_port: u16,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -186,6 +192,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let skel_builder = TcpbufferSkelBuilder::default();
     let mut open_object = MaybeUninit::uninit();
     let open_skel = skel_builder.open(&mut open_object)?;
+
+    open_skel.maps.rodata_data.tgt_src_port = args.src_port;
+    open_skel.maps.rodata_data.tgt_dst_port = args.dst_port;
+
     let mut skel = open_skel.load()?;
     skel.attach()?;
 
