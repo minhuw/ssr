@@ -61,9 +61,6 @@ int filter_conn(struct sock *sk) {
   __u16 src_port = sk->__sk_common.skc_num;
   __u16 dst_port = sk->__sk_common.skc_dport;
 
-  bpf_printk("src port: %u, dst port: %u, target src port: %u, target dst port: %u\n",
-            src_port, dst_port, tgt_src_port, tgt_dst_port);
-
   if (((src_port == tgt_src_port) || (tgt_src_port == 0)) &&
       ((dst_port == tgt_dst_port) || (tgt_dst_port == 0))) {
     return 1;
