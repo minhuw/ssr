@@ -148,10 +148,11 @@ fn handle_event(
         }
 
         let _ = result_file.write_fmt(format_args!(
-            "{},{},{},{}\n",
+            "{},{},{},{},{}\n",
             datetime.format("%+"),
-            event.socket_cookie,
+            event.pid,
             String::from_utf8_lossy(&event.comm),
+            event.socket_cookie,
             event.rx_buffer,
         ));
     }
@@ -199,7 +200,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut skel = open_skel.load()?;
     skel.attach()?;
 
-    result_file.write_all("timestamp,pid,comm,rx_buffer\n".as_bytes())?;
+    result_file.write_all("timestamp,pid,comm,cookie,rx_buffer\n".as_bytes())?;
     println!("eBPF attached. Monitoring events...");
 
     let mut socket_map: HashMap<u64, FiveTuple> = HashMap::new();
