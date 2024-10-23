@@ -4,6 +4,7 @@ use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
 use libbpf_rs::{Map, MapCore, MapFlags, PrintLevel, RingBufferBuilder};
 use std::collections::HashMap;
 use std::error::Error;
+use std::ffi::CStr;
 use std::fs::File;
 use std::io::Write;
 use std::mem::MaybeUninit;
@@ -147,12 +148,17 @@ fn handle_event(
     };
 
     if five_tuple.is_some() {
+        let comm = match CStr::from_bytes_until_nul(&event.comm) {
+            Ok(comm) => comm.to_string_lossy(),
+            Err(_) => "Unknown".into(),
+        };
+
         if verbose {
             println!(
                 "[{}] Timestamp: {}, Process: {} ({}), cookie: {}, event: {}, rx buffer size: {}",
                 five_tuple.unwrap(),
                 datetime.format("%+"),
-                String::from_utf8_lossy(&event.comm),
+                comm,
                 event.pid,
                 event.socket_cookie,
                 log_event(event.event_type),
@@ -164,7 +170,7 @@ fn handle_event(
             "{},{},{},{},{},{}\n",
             datetime.format("%+"),
             event.pid,
-            String::from_utf8_lossy(&event.comm),
+            comm,
             event.socket_cookie,
             event.event_type,
             event.rx_buffer,
@@ -176,8 +182,8 @@ fn handle_event(
 
 #[derive(Parser, Debug)]
 #[command(
-    author = "Your Name <youremail@example.com>",
-    version = "1.0",
+    author = "Minhu Wang <minhuw@hey.com>",
+    version = "0.1",
     about = "An example CLI using clap",
     long_about = None
 )]
