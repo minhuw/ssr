@@ -25,7 +25,18 @@ struct BufferMessage {
     rx_buffer: u32,
     timestamp_ns: u64,
     socket_cookie: u64,
+    event_type: i32,
     comm: [u8; 16],
+}
+
+fn log_event(event_code: i32) -> &'static str {
+    match event_code {
+        1 => "+ Packet",
+        2 => "+ Packet (Done)",
+        3 => "- App",
+        4 => "- App (Done)",
+        _ => "Unknown event",
+    }
 }
 
 // Define the FiveTuple struct
@@ -138,21 +149,24 @@ fn handle_event(
     if five_tuple.is_some() {
         if verbose {
             println!(
-                "[{}] Timestamp: {}, Process: {} ({}), rx buffer size: {}",
+                "[{}] Timestamp: {}, Process: {} ({}), cookie: {}, event: {}, rx buffer size: {}",
                 five_tuple.unwrap(),
                 datetime.format("%+"),
                 String::from_utf8_lossy(&event.comm),
                 event.pid,
+                event.socket_cookie,
+                log_event(event.event_type),
                 event.rx_buffer
             );
         }
 
         let _ = result_file.write_fmt(format_args!(
-            "{},{},{},{},{}\n",
+            "{},{},{},{},{},{}\n",
             datetime.format("%+"),
             event.pid,
             String::from_utf8_lossy(&event.comm),
             event.socket_cookie,
+            event.event_type,
             event.rx_buffer,
         ));
     }
@@ -200,7 +214,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut skel = open_skel.load()?;
     skel.attach()?;
 
-    result_file.write_all("timestamp,pid,comm,cookie,rx_buffer\n".as_bytes())?;
+    result_file.write_all("timestamp,pid,comm,cookie,event_type,rx_buffer\n".as_bytes())?;
     println!("eBPF attached. Monitoring events...");
 
     let mut socket_map: HashMap<u64, FiveTuple> = HashMap::new();

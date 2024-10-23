@@ -18,6 +18,13 @@ struct five_tuple_t {
   __u8 protocol; // Protocol (e.g., IPPROTO_TCP)
 };
 
+enum {
+  NEW_PACKET_EVENT = 1,
+  NEW_PACEKT_DONE_EVENT = 2,
+  APP_RECV_EVENT = 3,
+  APP_RECV_DONE_EVENT = 4,
+};
+
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __uint(max_entries, 10240);
@@ -30,6 +37,7 @@ struct buffer_message_t {
   __u32 rx_buffer;
   __u64 timestamp_ns;
   __u64 socket_cookie;
+  int event_type;
   char comm[16];
 };
 
@@ -99,6 +107,7 @@ int BPF_PROG(tcp_rcv_established_entry, struct sock *sk, struct sk_buff *skb) {
   data->rx_buffer = rcv_nxt - copied_seq;
   data->timestamp_ns = bpf_ktime_get_ns();
   data->socket_cookie = cookie;
+  data->event_type = NEW_PACKET_EVENT;
   bpf_get_current_comm(&data->comm, sizeof(data->comm));
 
   bpf_ringbuf_submit(data, 0);
@@ -136,6 +145,7 @@ int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
   data->rx_buffer = rcv_nxt - copied_seq;
   data->timestamp_ns = bpf_ktime_get_ns();
   data->socket_cookie = cookie;
+  data->event_type = NEW_PACEKT_DONE_EVENT;
   bpf_get_current_comm(&data->comm, sizeof(data->comm));
 
   bpf_ringbuf_submit(data, 0);
@@ -174,6 +184,7 @@ int BPF_PROG(tcp_recvmsg_entry, struct sock *sk, struct msghdr *msg, size_t len,
   data->rx_buffer = rcv_nxt - copied_seq;
   data->timestamp_ns = bpf_ktime_get_ns();
   data->socket_cookie = bpf_get_socket_cookie(sk);
+  data->event_type = APP_RECV_EVENT;
   bpf_get_current_comm(&data->comm, sizeof(data->comm));
 
   bpf_ringbuf_submit(data, 0);
@@ -212,6 +223,7 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
   data->rx_buffer = rcv_nxt - copied_seq;
   data->timestamp_ns = bpf_ktime_get_ns();
   data->socket_cookie = bpf_get_socket_cookie(sk);
+  data->event_type = APP_RECV_DONE_EVENT;
   bpf_get_current_comm(&data->comm, sizeof(data->comm));
 
   bpf_ringbuf_submit(data, 0);
