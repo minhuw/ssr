@@ -68,6 +68,44 @@ int filter_conn(struct sock *sk) {
   return 0;
 }
 
+
+SEC("fentry/tcp_rcv_established")
+int BPF_PROG(tcp_rcv_established_entry, struct sock *sk, struct sk_buff *skb) {
+  if (!filter_conn(sk)) {
+    return 0;
+  }
+
+  struct tcp_sock *tp = (struct tcp_sock *)sk;
+  __u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);
+  __u32 copied_seq = BPF_CORE_READ(tp, copied_seq);
+  __u64 cookie = bpf_get_socket_cookie(sk);
+
+  store_five_tuple(sk, cookie);
+
+#if PRINTK_DEBUG
+  bpf_printk("kprobe triggered at tcp_rcv_established, rcv_nxt: %u, "
+             "copied_seq: %u, RecvQ: %d\n",
+             rcv_nxt, copied_seq, rcv_nxt - copied_seq);
+#endif
+
+  struct buffer_message_t *data =
+      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+
+  if (!data) {
+    return 0;
+  }
+
+  data->pid = bpf_get_current_pid_tgid() >> 32;
+  data->rx_buffer = rcv_nxt - copied_seq;
+  data->timestamp_ns = bpf_ktime_get_ns();
+  data->socket_cookie = cookie;
+  bpf_get_current_comm(&data->comm, sizeof(data->comm));
+
+  bpf_ringbuf_submit(data, 0);
+
+  return 0;
+}
+
 SEC("fexit/tcp_rcv_established")
 int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
   if (!filter_conn(sk)) {
@@ -98,6 +136,44 @@ int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
   data->rx_buffer = rcv_nxt - copied_seq;
   data->timestamp_ns = bpf_ktime_get_ns();
   data->socket_cookie = cookie;
+  bpf_get_current_comm(&data->comm, sizeof(data->comm));
+
+  bpf_ringbuf_submit(data, 0);
+
+  return 0;
+}
+
+SEC("fentry/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_entry, struct sock *sk, struct msghdr *msg, size_t len,
+             int flags, int *addr_len) {
+
+  if (!filter_conn(sk)) {
+    return 0;
+  }
+
+  struct tcp_sock *tp = (struct tcp_sock *)sk;
+  __u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);
+  __u32 copied_seq = BPF_CORE_READ(tp, copied_seq);
+  __u64 cookie = bpf_get_socket_cookie(sk);
+
+  store_five_tuple(sk, cookie);
+
+#if PRINTK_DEBUG
+  bpf_printk("kprobe triggered at tcp_recvmsg, rcv_nxt: %u, "
+             "copied_seq: %u, RecvQ: %d\n",
+             rcv_nxt, copied_seq, rcv_nxt - copied_seq);
+#endif
+
+  struct buffer_message_t *data =
+      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+  if (!data) {
+    return 0;
+  }
+
+  data->pid = bpf_get_current_pid_tgid() >> 32;
+  data->rx_buffer = rcv_nxt - copied_seq;
+  data->timestamp_ns = bpf_ktime_get_ns();
+  data->socket_cookie = bpf_get_socket_cookie(sk);
   bpf_get_current_comm(&data->comm, sizeof(data->comm));
 
   bpf_ringbuf_submit(data, 0);
