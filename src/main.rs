@@ -1,5 +1,6 @@
 use chrono::{DateTime, Local, TimeZone};
 use clap::Parser;
+use dctcp::DctcpSkelBuilder;
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
 use libbpf_rs::{Map, MapCore, MapFlags, PrintLevel, RingBufferBuilder};
 use std::collections::HashMap;
@@ -15,6 +16,13 @@ mod tcpbuffer {
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/src/bpf/tcpbuffer.skel.rs"
+    ));
+}
+
+mod dctcp {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/src/bpf/dctcp.skel.rs"
     ));
 }
 
@@ -38,6 +46,15 @@ fn log_event(event_code: i32) -> &'static str {
         4 => "- App (Done)",
         _ => "Unknown event",
     }
+}
+
+#[repr(C)]
+struct DctcpEvent {
+    cookie: u64,
+    timestamp_ns: u64,
+    snd_cwnd: u32,
+    ssthresh: u32,
+    in_flight: u32,
 }
 
 // Define the FiveTuple struct
@@ -180,6 +197,39 @@ fn handle_event(
     0
 }
 
+fn handle_dctcp_event(data: &[u8], boot_time_ns: u64, result_file: &mut File) -> i32 {
+    if data.len() < std::mem::size_of::<DctcpEvent>() {
+        eprintln!("Data size mismatch");
+        return 0;
+    }
+
+    // Cast the data to our Data struct
+    let event = unsafe { &*(data.as_ptr() as *const DctcpEvent) };
+
+    let absolute_timestamp_ns = boot_time_ns + event.timestamp_ns;
+
+    let naive_datetime = DateTime::from_timestamp(
+        (absolute_timestamp_ns / 1_000_000_000) as i64,
+        (absolute_timestamp_ns % 1_000_000_000) as u32,
+    )
+    .unwrap_or_default()
+    .naive_utc();
+
+    // Convert to Local datetime
+    let datetime: DateTime<Local> = Local.from_utc_datetime(&naive_datetime);
+
+    let _ = result_file.write_fmt(format_args!(
+        "{},{},{},{},{}\n",
+        datetime.format("%+"),
+        event.cookie,
+        event.snd_cwnd,
+        event.ssthresh,
+        event.in_flight,
+    ));
+
+    0
+}
+
 #[derive(Parser, Debug)]
 #[command(
     author = "Minhu Wang <minhuw@hey.com>",
@@ -200,6 +250,9 @@ struct Args {
 
     #[arg(short, long, default_value = "0")]
     dst_port: u16,
+
+    #[arg(short, long)]
+    cc_result: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -241,8 +294,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     })?;
     let ringbuf = builder.build()?;
 
-    loop {
-        ringbuf.poll(Duration::from_millis(100))?;
+    if let Some(result) = args.cc_result {
+        let skel_builder = DctcpSkelBuilder::default();
+        let mut open_object = MaybeUninit::uninit();
+        let open_skel = skel_builder.open(&mut open_object)?;
+
+        let mut skel = open_skel.load()?;
+        skel.attach()?;
+
+        let mut result_file = File::create(result)?;
+        result_file.write_all("timestamp,cookie,snd_cwnd,ssthresh,in_flight\n".as_bytes())?;
+        let mut builder = RingBufferBuilder::new();
+
+        builder.add(&skel.maps.dctcp_events, move |data| {
+            handle_dctcp_event(data, boot_time_ns, &mut result_file)
+        })?;
+
+        let tcp_ringbuf = builder.build()?;
+
+        loop {
+            ringbuf.poll(Duration::from_millis(100))?;
+            tcp_ringbuf.poll(Duration::from_millis(100))?;
+        }
+    } else {
+        loop {
+            ringbuf.poll(Duration::from_millis(100))?;
+        }
     }
 }
 
