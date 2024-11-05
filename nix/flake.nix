@@ -20,5 +20,41 @@
         tcpbuffer = nixpkgs.legacyPackages.${system}.callPackage ./package.nix { };
         default = tcpbuffer;
       });
+
+      devShells = forEachSystem (system:  
+      let 
+        pkgs = nixpkgs.legacyPackages.${system};
+      in {
+        default = pkgs.mkShell {
+          buildInputs = with pkgs; [
+            bear
+            cachix
+            libbpf
+            gnumake
+            git
+            bpftools
+            elfutils
+            zlib
+            linuxHeaders
+            clang-tools
+            llvmPackages_15.clangUseLLVM
+            pkg-config
+
+            # for shell
+            fish
+            starship
+            chezmoi
+
+            # for rust
+            cargo
+            rustc
+          ];
+
+          shellHook = ''
+            echo "Welcome to the development environment!"
+            fish
+          '';
+        };
+      });
     };
 }
