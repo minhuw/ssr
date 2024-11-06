@@ -5,6 +5,8 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+const volatile __u16 tgt_src_port = 0;
+const volatile __u16 tgt_dst_port = 0;
 
 #define SOL_TCP		6
 
@@ -23,15 +25,30 @@ struct {
   __uint(max_entries, 1 << 24);
 } dctcp_events SEC(".maps");
 
+int filter_conn(struct sock *sk) {
+  __u16 src_port = sk->__sk_common.skc_num;
+  __u16 dst_port = sk->__sk_common.skc_dport;
+
+  if (((src_port == tgt_src_port) || (tgt_src_port == 0)) &&
+      ((dst_port == tgt_dst_port) || (tgt_dst_port == 0))) {
+    return 1;
+  }
+  return 0;
+}
+
 // Attach fentry to `tcp_cong_avoid`
 SEC("fentry/tcp_ack")
 int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
     struct tcp_sock *tp = (struct tcp_sock *)sk;
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
 
-    // Check if the inet_connection_sock or icsk_ca_ops is valid
+    if (!filter_conn(sk)) {
+        return 0;
+    }
 
-    if (bpf_strncmp(BPF_CORE_READ(icsk, icsk_ca_ops, name), 5, "dctcp") != 0)
+    // Check if the inet_connection_sock or icsk_ca_ops is valid
+    const char* cc_name = BPF_CORE_READ(icsk, icsk_ca_ops, name);
+    if (bpf_strncmp(cc_name, 5, "dctcp") != 0)
         return 0;
 
     // Send data to user-space

@@ -50,8 +50,8 @@ fn log_event(event_code: i32) -> &'static str {
 
 #[repr(C)]
 struct DctcpEvent {
-    cookie: u64,
     timestamp_ns: u64,
+    cookie: u64,
     snd_cwnd: u32,
     ssthresh: u32,
     in_flight: u32,
@@ -267,8 +267,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut open_object = MaybeUninit::uninit();
     let open_skel = skel_builder.open(&mut open_object)?;
 
-    open_skel.maps.rodata_data.tgt_src_port = args.src_port;
-    open_skel.maps.rodata_data.tgt_dst_port = args.dst_port;
+    open_skel.maps.rodata_data.tgt_src_port = args.src_port.to_be();
+    open_skel.maps.rodata_data.tgt_dst_port = args.dst_port.to_be();
 
     let mut skel = open_skel.load()?;
     skel.attach()?;
@@ -298,6 +298,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         let skel_builder = DctcpSkelBuilder::default();
         let mut open_object = MaybeUninit::uninit();
         let open_skel = skel_builder.open(&mut open_object)?;
+
+        open_skel.maps.rodata_data.tgt_src_port = args.src_port.to_be();
+        open_skel.maps.rodata_data.tgt_dst_port = args.dst_port.to_be();
 
         let mut skel = open_skel.load()?;
         skel.attach()?;
