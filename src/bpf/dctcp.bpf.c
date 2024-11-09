@@ -17,7 +17,11 @@ struct dctcp_message_t {
     u64 socket_cookie;
     u32 snd_cwnd;
     u32 ssthresh;
-    u32 in_flight; 
+    u32 in_flight;
+    u32 delivered;
+    u32 delivered_ce;
+    u32 srtt;
+    u32 mdev;
 };
 
 struct {
@@ -36,8 +40,7 @@ int filter_conn(struct sock *sk) {
   return 0;
 }
 
-// Attach fentry to `tcp_cong_avoid`
-SEC("fentry/tcp_ack")
+SEC("fexit/tcp_ack")
 int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
     struct tcp_sock *tp = (struct tcp_sock *)sk;
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
@@ -64,6 +67,10 @@ int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
     event->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
     event->ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
     event->in_flight = BPF_CORE_READ(tp, packets_out);
+    event->delivered = BPF_CORE_READ(tp, delivered);
+    event->delivered_ce = BPF_CORE_READ(tp, delivered_ce);
+    event->srtt = BPF_CORE_READ(tp, srtt_us) >> 3;
+    event->mdev = BPF_CORE_READ(tp, mdev_us);
 
     bpf_ringbuf_submit(event, 0);
 

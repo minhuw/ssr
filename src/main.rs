@@ -55,6 +55,10 @@ struct DctcpEvent {
     snd_cwnd: u32,
     ssthresh: u32,
     in_flight: u32,
+    delivered: u32,
+    delivered_ce: u32,
+    srtt: u32,
+    mdev: u32
 }
 
 // Define the FiveTuple struct
@@ -219,12 +223,16 @@ fn handle_dctcp_event(data: &[u8], boot_time_ns: u64, result_file: &mut File) ->
     let datetime: DateTime<Local> = Local.from_utc_datetime(&naive_datetime);
 
     let _ = result_file.write_fmt(format_args!(
-        "{},{},{},{},{}\n",
+        "{},{},{},{},{},{},{},{},{}\n",
         datetime.format("%+"),
         event.cookie,
         event.snd_cwnd,
         event.ssthresh,
         event.in_flight,
+        event.delivered,
+        event.delivered_ce,
+        event.srtt,
+        event.mdev
     ));
 
     0
@@ -306,7 +314,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         skel.attach()?;
 
         let mut result_file = File::create(result)?;
-        result_file.write_all("timestamp,cookie,snd_cwnd,ssthresh,in_flight\n".as_bytes())?;
+        result_file.write_all("timestamp,cookie,snd_cwnd,ssthresh,in_flight,delivered,delivered_ce,rtt,mdev\n".as_bytes())?;
         let mut builder = RingBufferBuilder::new();
 
         builder.add(&skel.maps.dctcp_events, move |data| {
