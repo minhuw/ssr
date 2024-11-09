@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
     flake-compat.url = "https://flakehub.com/f/edolstra/flake-compat/1.tar.gz";
   };
@@ -50,10 +50,13 @@
             rustc
           ];
 
+          hardeningDisable = [
+            "zerocallusedregs"
+          ];
+
           shellHook = ''
             echo "Welcome to the development environment!"
             export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E"
-            fish
           '';
         };
       });
