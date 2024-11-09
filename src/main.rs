@@ -1,6 +1,5 @@
 use chrono::{DateTime, Local, TimeZone};
 use clap::Parser;
-use dctcp::DctcpSkelBuilder;
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
 use libbpf_rs::{Map, MapCore, MapFlags, PrintLevel, RingBufferBuilder};
 use std::collections::HashMap;
@@ -12,21 +11,9 @@ use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
-mod tcpbuffer {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/bpf/tcpbuffer.skel.rs"
-    ));
-}
-
-mod dctcp {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/bpf/dctcp.skel.rs"
-    ));
-}
-
-use tcpbuffer::*;
+mod common;
+mod dctcp;
+mod tcpbuffer;
 
 #[repr(C)]
 struct BufferMessage {
@@ -58,7 +45,7 @@ struct DctcpEvent {
     delivered: u32,
     delivered_ce: u32,
     srtt: u32,
-    mdev: u32
+    mdev: u32,
 }
 
 // Define the FiveTuple struct
@@ -268,70 +255,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Optional: Set up logging from libbpf
     libbpf_rs::set_print(Some((PrintLevel::Debug, libbpf_print_fn)));
-    let mut result_file = File::create(args.result)?;
 
-    // Load and open the BPF application
-    let skel_builder = TcpbufferSkelBuilder::default();
-    let mut open_object = MaybeUninit::uninit();
-    let open_skel = skel_builder.open(&mut open_object)?;
-
-    open_skel.maps.rodata_data.tgt_src_port = args.src_port.to_be();
-    open_skel.maps.rodata_data.tgt_dst_port = args.dst_port.to_be();
-
-    let mut skel = open_skel.load()?;
-    skel.attach()?;
-
-    result_file.write_all("timestamp,pid,comm,cookie,event_type,rx_buffer\n".as_bytes())?;
-    println!("eBPF attached. Monitoring events...");
-
-    let mut socket_map: HashMap<u64, FiveTuple> = HashMap::new();
-    let sock_info_map = skel.maps.sock_info_map;
-
-    let boot_time_ns = get_boot_time_ns()?;
-
-    let mut builder = RingBufferBuilder::new();
-    builder.add(&skel.maps.events, move |data| {
-        handle_event(
-            data,
-            boot_time_ns,
-            &mut socket_map,
-            &sock_info_map,
-            &mut result_file,
-            args.verbose,
-        )
-    })?;
-    let ringbuf = builder.build()?;
-
-    if let Some(result) = args.cc_result {
-        let skel_builder = DctcpSkelBuilder::default();
-        let mut open_object = MaybeUninit::uninit();
-        let open_skel = skel_builder.open(&mut open_object)?;
-
-        open_skel.maps.rodata_data.tgt_src_port = args.src_port.to_be();
-        open_skel.maps.rodata_data.tgt_dst_port = args.dst_port.to_be();
-
-        let mut skel = open_skel.load()?;
-        skel.attach()?;
-
-        let mut result_file = File::create(result)?;
-        result_file.write_all("timestamp,cookie,snd_cwnd,ssthresh,in_flight,delivered,delivered_ce,rtt,mdev\n".as_bytes())?;
-        let mut builder = RingBufferBuilder::new();
-
-        builder.add(&skel.maps.dctcp_events, move |data| {
-            handle_dctcp_event(data, boot_time_ns, &mut result_file)
-        })?;
-
-        let tcp_ringbuf = builder.build()?;
-
-        loop {
-            ringbuf.poll(Duration::from_millis(100))?;
-            tcp_ringbuf.poll(Duration::from_millis(100))?;
-        }
-    } else {
-        loop {
-            ringbuf.poll(Duration::from_millis(100))?;
-        }
-    }
+    Ok(())
 }
 
 fn libbpf_print_fn(level: PrintLevel, msg: std::string::String) {

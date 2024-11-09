@@ -27,7 +27,7 @@ struct dctcp_message_t {
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
   __uint(max_entries, 1 << 24);
-} dctcp_events SEC(".maps");
+} events SEC(".maps");
 
 int filter_conn(struct sock *sk) {
   __u16 src_port = sk->__sk_common.skc_num;
@@ -56,7 +56,7 @@ int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
 
     // Send data to user-space
     struct dctcp_message_t *event =
-        bpf_ringbuf_reserve(&dctcp_events, sizeof(struct dctcp_message_t), 0);
+        bpf_ringbuf_reserve(&events, sizeof(struct dctcp_message_t), 0);
 
     if (!event)
         return 0;
