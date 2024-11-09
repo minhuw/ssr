@@ -1,7 +1,11 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    systems.url = "github:nix-systems/default";
+    flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-compat.url = "https://flakehub.com/f/edolstra/flake-compat/1.tar.gz";
   };
 
@@ -9,56 +13,66 @@
     {
       self,
       nixpkgs,
-      systems,
+      rust-overlay,
+      flake-utils,
       ...
-    }@inputs:
-    let
-      forEachSystem = nixpkgs.lib.genAttrs (import systems);
-    in
-    {
-      packages = forEachSystem (system: rec {
-        tcpbuffer = nixpkgs.legacyPackages.${system}.callPackage ./package.nix { };
-        default = tcpbuffer;
-      });
-
-      devShells = forEachSystem (system:  
-      let 
-        pkgs = nixpkgs.legacyPackages.${system};
-      in {
-        default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            bear
-            cachix
-            libbpf
-            gnumake
-            git
-            bpftools
-            elfutils
-            zlib
-            linuxHeaders
-            clang-tools
-            llvmPackages_15.clangUseLLVM
-            pkg-config
-
-            # for shell
-            fish
-            starship
-            chezmoi
-
-            # for rust
-            cargo
-            rustc
-          ];
-
-          hardeningDisable = [
-            "zerocallusedregs"
-          ];
-
-          shellHook = ''
-            echo "Welcome to the development environment!"
-            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E"
-          '';
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs {
+          inherit system overlays;
         };
-      });
-    };
+        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+          extensions = [
+            "rust-src"
+            "rust-analyzer"
+          ];
+        };
+      in
+      {
+        packages = rec {
+          tcpbuffer = pkgs.callPackage ./package.nix { };
+          default = tcpbuffer;
+        };
+
+        devShells = {
+          default = pkgs.mkShell {
+            buildInputs = with pkgs; [
+              bear
+              cachix
+              libbpf
+              gnumake
+              git
+              bpftools
+              elfutils
+              zlib
+              linuxHeaders
+              clang-tools
+              llvmPackages_15.clangUseLLVM
+              pkg-config
+              nixfmt-rfc-style
+
+              # for shell
+              fish
+              starship
+              chezmoi
+
+              # for rust
+              rustToolchain
+            ];
+
+            hardeningDisable = [
+              "zerocallusedregs"
+            ];
+
+            shellHook = ''
+              echo "Welcome to the development environment!"
+              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo -E"
+            '';
+          };
+        };
+      }
+    );
 }
