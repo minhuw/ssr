@@ -79,7 +79,6 @@ impl From<&SockInfo> for NetTuple {
     }
 }
 
-// #[pin_project]
 pub struct CookieTracker {
     ringbuf: RingBuffer<'static>,
     _link: Link,

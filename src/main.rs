@@ -9,11 +9,13 @@ use std::fs::File;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tcpbuffer::TCPBufferEventTracker;
+use tcppacket::TCPPacketEventTracker;
 
 mod common;
 mod dctcp;
 mod fivetuple;
 mod tcpbuffer;
+mod tcppacket;
 
 fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
 where
@@ -71,6 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             match key.as_str() {
                 "tcpbuffer" => Box::new(TCPBufferEventTracker::new(&filter, result_file)?),
                 "dctcp" => Box::new(DctcpEventTracker::new(&filter, result_file)?),
+                "tcppacket" => Box::new(TCPPacketEventTracker::new(&filter, result_file)?),
                 _ => panic!("Unknown event type"),
             }
         });

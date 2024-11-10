@@ -34,9 +34,9 @@ fn get_boot_time_ns() -> Result<u64, Box<dyn std::error::Error>> {
 #[repr(C)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FlowBPF {
-    pid: u32,
-    comm: [u8; 16],
-    socket_cookie: u64,
+    pub pid: u32,
+    pub comm: [u8; 16],
+    pub socket_cookie: u64,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
