@@ -82,8 +82,8 @@ impl From<&SockInfo> for NetTuple {
 // #[pin_project]
 pub struct CookieTracker {
     ringbuf: RingBuffer<'static>,
-    link: Link,
-    open_object: Box<MaybeUninit<OpenObject>>,
+    _link: Link,
+    _open_object: Box<MaybeUninit<OpenObject>>,
 }
 
 impl CookieTracker {
@@ -126,9 +126,8 @@ impl CookieTracker {
 
         Ok(Box::pin(Self {
             ringbuf,
-            link,
-            // skel,
-            open_object: Box::new(MaybeUninit::uninit()),
+            _link: link,
+            _open_object: Box::new(MaybeUninit::uninit()),
         }))
     }
 }

@@ -1,6 +1,7 @@
 /target
 
 *.csv
+*.parquet
 
 # direnv
 .direnv

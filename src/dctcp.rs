@@ -24,18 +24,14 @@ pub mod bpf {
 
 use bpf::{DctcpSkel, DctcpSkelBuilder, OpenDctcpSkel};
 
-use crate::common::ConnectionFilterConfig;
-use crate::common::EventPoller;
-use crate::common::NetTuple;
-use crate::common::RecordWriter;
-use crate::common::BOOT_TIME_NS;
+use crate::common::{
+    ConnectionFilterConfig, EventPoller, Flow, FlowBPF, RecordWriter, BOOT_TIME_NS,
+};
 
 #[repr(C)]
 struct DctcpEvent {
-    pid: u32,
-    comm: [u8; 16],
     timestamp_ns: u64,
-    cookie: u64,
+    flow: FlowBPF,
     snd_cwnd: u32,
     ssthresh: u32,
     in_flight: u32,
@@ -47,11 +43,8 @@ struct DctcpEvent {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DctcpMessage {
-    pid: u32,
-    comm: String,
-    conn_cookie: u64,
-    conn_tuple: NetTuple,
     time: NaiveDateTime,
+    flow: Flow,
     snd_cwnd: u32,
     ssthresh: u32,
     in_flight: u32,
@@ -64,13 +57,10 @@ struct DctcpMessage {
 impl Default for DctcpMessage {
     fn default() -> Self {
         Self {
-            pid: 0,
-            comm: String::new(),
-            conn_cookie: 0,
-            conn_tuple: NetTuple::default(),
             time: DateTime::from_timestamp(0, 0)
                 .unwrap_or_default()
                 .naive_utc(),
+            flow: Flow::default(),
             snd_cwnd: 0,
             ssthresh: 0,
             in_flight: 0,
@@ -92,8 +82,6 @@ impl TryFrom<&[u8]> for DctcpMessage {
 
         let event = unsafe { &*(data.as_ptr() as *const DctcpEvent) };
 
-        let comm = String::from_utf8_lossy(&event.comm).to_string();
-
         let absolute_timestamp_ns = *BOOT_TIME_NS + event.timestamp_ns;
         let naive_datetime = DateTime::from_timestamp(
             (absolute_timestamp_ns / 1_000_000_000) as i64,
@@ -103,11 +91,8 @@ impl TryFrom<&[u8]> for DctcpMessage {
         .naive_utc();
 
         Ok(DctcpMessage {
-            pid: event.pid,
-            comm,
-            conn_cookie: event.cookie,
-            conn_tuple: NetTuple::default(),
             time: naive_datetime,
+            flow: Flow::from(&event.flow),
             snd_cwnd: event.snd_cwnd,
             ssthresh: event.ssthresh,
             in_flight: event.in_flight,
@@ -121,10 +106,10 @@ impl TryFrom<&[u8]> for DctcpMessage {
 
 #[pin_project]
 pub struct DctcpEventTracker {
-    open_object: Box<MaybeUninit<OpenObject>>,
     #[pin]
     skel: DctcpSkel<'static>, // Using 'static lifetime
     ringbuf: RingBuffer<'static>,
+    open_object: Box<MaybeUninit<OpenObject>>,
 }
 
 impl DctcpEventTracker {

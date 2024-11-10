@@ -8,12 +8,9 @@ use std::mem::transmute;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
-use crate::common::ConnectionFilterConfig;
-use crate::common::EventPoller;
-use crate::common::NetTuple;
-use crate::common::RecordWriter;
-use crate::common::BOOT_TIME_NS;
-use crate::common::CONNECTION_MAP;
+use crate::common::{
+    ConnectionFilterConfig, EventPoller, Flow, FlowBPF, RecordWriter, BOOT_TIME_NS,
+};
 use anyhow::Result;
 use libbpf_rs::{
     skel::{OpenSkel, Skel, SkelBuilder},
@@ -34,12 +31,10 @@ use bpf::{OpenTcpbufferSkel, TcpbufferSkel, TcpbufferSkelBuilder};
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct BufferEvent {
-    pid: u32,
-    comm: [u8; 16],
-    rx_buffer: u32,
     timestamp_ns: u64,
-    socket_cookie: u64,
+    flow: FlowBPF,
     event_type: i32,
+    rx_buffer: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -67,11 +62,8 @@ impl TryFrom<i32> for EventType {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BufferMessage {
-    pid: u32,
-    comm: String,
-    conn_cookie: u64,
-    conn_tuple: NetTuple,
     time: NaiveDateTime,
+    flow: Flow,
     rx_buffer: u32,
     event_type: EventType,
 }
@@ -79,13 +71,10 @@ pub struct BufferMessage {
 impl Default for BufferMessage {
     fn default() -> Self {
         BufferMessage {
-            pid: 0,
-            comm: String::new(),
-            conn_cookie: 0,
-            conn_tuple: NetTuple::default(),
             time: DateTime::from_timestamp(0, 0)
                 .unwrap_or_default()
                 .naive_utc(),
+            flow: Flow::default(),
             rx_buffer: 0,
             event_type: EventType::Packet,
         }
@@ -102,8 +91,6 @@ impl TryFrom<&[u8]> for BufferMessage {
 
         let event = unsafe { &*(data.as_ptr() as *const BufferEvent) };
 
-        let comm = String::from_utf8_lossy(&event.comm).to_string();
-
         let absolute_timestamp_ns = *BOOT_TIME_NS + event.timestamp_ns;
         let naive_datetime = DateTime::from_timestamp(
             (absolute_timestamp_ns / 1_000_000_000) as i64,
@@ -113,17 +100,9 @@ impl TryFrom<&[u8]> for BufferMessage {
         .naive_utc();
 
         Ok(BufferMessage {
-            pid: event.pid,
-            comm,
-            conn_cookie: event.socket_cookie,
-            conn_tuple: CONNECTION_MAP
-                .read()
-                .unwrap()
-                .get(&event.socket_cookie)
-                .unwrap_or(&NetTuple::default())
-                .clone(),
-            rx_buffer: event.rx_buffer,
             time: naive_datetime,
+            flow: Flow::from(&event.flow),
+            rx_buffer: event.rx_buffer,
             event_type: event.event_type.try_into()?,
         })
     }

@@ -5,6 +5,8 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+#include "common.h"
+
 const volatile __u16 tgt_src_port = 0;
 const volatile __u16 tgt_dst_port = 0;
 
@@ -14,7 +16,7 @@ const volatile __u16 tgt_dst_port = 0;
 
 struct dctcp_message_t {
     u64 timestamp_ns;
-    u64 socket_cookie;
+    struct flow flow;
     u32 snd_cwnd;
     u32 ssthresh;
     u32 in_flight;
@@ -29,23 +31,13 @@ struct {
   __uint(max_entries, 1 << 24);
 } events SEC(".maps");
 
-int filter_conn(struct sock *sk) {
-  __u16 src_port = sk->__sk_common.skc_num;
-  __u16 dst_port = sk->__sk_common.skc_dport;
-
-  if (((src_port == tgt_src_port) || (tgt_src_port == 0)) &&
-      ((dst_port == tgt_dst_port) || (tgt_dst_port == 0))) {
-    return 1;
-  }
-  return 0;
-}
 
 SEC("fexit/tcp_ack")
 int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
     struct tcp_sock *tp = (struct tcp_sock *)sk;
     struct inet_connection_sock *icsk = (struct inet_connection_sock *)sk;
 
-    if (!filter_conn(sk)) {
+    if (!filter_conn(sk, tgt_src_port, tgt_dst_port)) {
         return 0;
     }
 
@@ -62,8 +54,12 @@ int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
         return 0;
 
     // Prepare event data
-    event->socket_cookie = bpf_get_socket_cookie(sk);
     event->timestamp_ns = bpf_ktime_get_ns();
+
+    event->flow.pid = bpf_get_current_pid_tgid() >> 32;
+    bpf_get_current_comm(&event->flow.comm, sizeof(event->flow.comm));
+    event->flow.socket_cookie = bpf_get_socket_cookie(sk);
+
     event->snd_cwnd = BPF_CORE_READ(tp, snd_cwnd);
     event->ssthresh = BPF_CORE_READ(tp, snd_ssthresh);
     event->in_flight = BPF_CORE_READ(tp, packets_out);

@@ -31,6 +31,39 @@ fn get_boot_time_ns() -> Result<u64, Box<dyn std::error::Error>> {
     Err("Could not find btime in /proc/stat".into())
 }
 
+#[repr(C)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FlowBPF {
+    pid: u32,
+    comm: [u8; 16],
+    socket_cookie: u64,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Flow {
+    pub pid: u32,
+    pub comm: String,
+    pub conn_cookie: u64,
+    pub conn_tuple: NetTuple,
+}
+
+impl From<&FlowBPF> for Flow {
+    fn from(flow: &FlowBPF) -> Self {
+        let comm = String::from_utf8_lossy(&flow.comm).to_string();
+        Flow {
+            pid: flow.pid,
+            comm,
+            conn_cookie: flow.socket_cookie,
+            conn_tuple: CONNECTION_MAP
+                .read()
+                .unwrap()
+                .get(&flow.socket_cookie)
+                .unwrap_or(&NetTuple::default())
+                .clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetTuple {
     pub saddr: IpAddr,
