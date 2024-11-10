@@ -31,4 +31,6 @@ fn build(src: &str) {
 fn main() {
     build("tcpbuffer");
     build("dctcp");
+    build("tcppacket");
+    build("fivetuple");
 }

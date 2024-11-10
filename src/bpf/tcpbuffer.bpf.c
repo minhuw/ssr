@@ -25,45 +25,19 @@ enum {
   APP_RECV_DONE_EVENT = 4,
 };
 
-struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
-  __uint(max_entries, 10240);
-  __type(key, __u64);
-  __type(value, struct five_tuple_t);
-} sock_info_map SEC(".maps");
-
 struct buffer_message_t {
   __u32 pid;
+  char comm[16];
   __u32 rx_buffer;
   __u64 timestamp_ns;
   __u64 socket_cookie;
   int event_type;
-  char comm[16];
 };
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
   __uint(max_entries, 1 << 24);
 } events SEC(".maps");
-
-int store_five_tuple(struct sock *sk, __u64 cookie) {
-  // check whether the five tuple has been saved
-  struct five_tuple_t *tuplep = bpf_map_lookup_elem(&sock_info_map, &cookie);
-  if (tuplep) {
-    return 0;
-  }
-
-  struct five_tuple_t tuple = {};
-  tuple.saddr = sk->__sk_common.skc_rcv_saddr;
-  tuple.daddr = sk->__sk_common.skc_daddr;
-  tuple.sport = sk->__sk_common.skc_num;
-  tuple.dport = sk->__sk_common.skc_dport;
-  tuple.protocol = sk->__sk_common.skc_family;
-
-  bpf_map_update_elem(&sock_info_map, &cookie, &tuple, BPF_ANY);
-
-  return 0;
-}
 
 int filter_conn(struct sock *sk) {
   __u16 src_port = sk->__sk_common.skc_num;
@@ -76,7 +50,6 @@ int filter_conn(struct sock *sk) {
   return 0;
 }
 
-
 SEC("fentry/tcp_rcv_established")
 int BPF_PROG(tcp_rcv_established_entry, struct sock *sk, struct sk_buff *skb) {
   if (!filter_conn(sk)) {
@@ -87,8 +60,6 @@ int BPF_PROG(tcp_rcv_established_entry, struct sock *sk, struct sk_buff *skb) {
   __u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);
   __u32 copied_seq = BPF_CORE_READ(tp, copied_seq);
   __u64 cookie = bpf_get_socket_cookie(sk);
-
-  store_five_tuple(sk, cookie);
 
 #if PRINTK_DEBUG
   bpf_printk("kprobe triggered at tcp_rcv_established, rcv_nxt: %u, "
@@ -125,8 +96,6 @@ int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
   __u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);
   __u32 copied_seq = BPF_CORE_READ(tp, copied_seq);
   __u64 cookie = bpf_get_socket_cookie(sk);
-
-  store_five_tuple(sk, cookie);
 
 #if PRINTK_DEBUG
   bpf_printk("kprobe triggered at tcp_rcv_established, rcv_nxt: %u, "
@@ -166,8 +135,6 @@ int BPF_PROG(tcp_recvmsg_entry, struct sock *sk, struct msghdr *msg, size_t len,
   __u32 copied_seq = BPF_CORE_READ(tp, copied_seq);
   __u64 cookie = bpf_get_socket_cookie(sk);
 
-  store_five_tuple(sk, cookie);
-
 #if PRINTK_DEBUG
   bpf_printk("kprobe triggered at tcp_recvmsg, rcv_nxt: %u, "
              "copied_seq: %u, RecvQ: %d\n",
@@ -204,8 +171,6 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
   __u32 rcv_nxt = BPF_CORE_READ(tp, rcv_nxt);
   __u32 copied_seq = BPF_CORE_READ(tp, copied_seq);
   __u64 cookie = bpf_get_socket_cookie(sk);
-
-  store_five_tuple(sk, cookie);
 
 #if PRINTK_DEBUG
   bpf_printk("kprobe triggered at tcp_recvmsg, rcv_nxt: %u, "

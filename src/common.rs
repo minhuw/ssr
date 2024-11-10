@@ -1,24 +1,87 @@
 use anyhow::Result;
 use arrow::datatypes::{FieldRef, Schema};
+use lazy_static::lazy_static;
 use parquet::arrow::ArrowWriter;
 use serde::{Deserialize, Serialize};
 use serde_arrow::schema::{SchemaLike, TracingOptions};
-use std::{io::Write, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::Write,
+    net::{IpAddr, Ipv4Addr},
+    sync::{Arc, RwLock},
+};
+
+lazy_static! {
+    pub static ref BOOT_TIME_NS: u64 = get_boot_time_ns().unwrap();
+    pub static ref CONNECTION_MAP: RwLock<HashMap<u64, NetTuple>> = RwLock::new(HashMap::new());
+}
+
+fn get_boot_time_ns() -> Result<u64, Box<dyn std::error::Error>> {
+    let stat_contents = std::fs::read_to_string("/proc/stat")?;
+    for line in stat_contents.lines() {
+        if line.starts_with("btime ") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() == 2 {
+                let btime = parts[1].parse::<u64>()?;
+                // Convert btime (seconds since epoch) to nanoseconds
+                return Ok(btime * 1_000_000_000);
+            }
+        }
+    }
+    Err("Could not find btime in /proc/stat".into())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetTuple {
+    pub saddr: IpAddr,
+    pub daddr: IpAddr,
+    pub sport: u16,
+    pub dport: u16,
+    pub protocol: u8,
+}
+
+impl std::fmt::Display for NetTuple {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{} -> {}:{} ({})",
+            self.saddr, self.sport, self.daddr, self.dport, self.protocol
+        )
+    }
+}
+
+impl Default for NetTuple {
+    fn default() -> Self {
+        Self {
+            saddr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            daddr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            sport: 0,
+            dport: 0,
+            protocol: 0,
+        }
+    }
+}
 
 pub struct ConnectionFilterConfig {
     pub src_port: u16,
     pub dst_port: u16,
 }
-pub struct RecordWriter<'a, T: Serialize + Deserialize<'a> + Clone, W: Write + Send> {
+pub struct RecordWriter<'a, T: Serialize + Deserialize<'a> + Clone + Default, W: Write + Send> {
     schema: Vec<FieldRef>,
     buffer: Vec<T>,
     writer: ArrowWriter<W>,
     phantom: std::marker::PhantomData<&'a T>,
 }
 
-impl<'a, T: Serialize + Deserialize<'a> + Clone, W: Write + Send> RecordWriter<'a, T, W> {
+impl<'a, T: Serialize + Deserialize<'a> + Clone + Default, W: Write + Send> RecordWriter<'a, T, W> {
     pub fn new(output_file: W) -> Result<Self> {
-        let fields = Vec::<FieldRef>::from_type::<T>(TracingOptions::default())?;
+        let fields = Vec::<FieldRef>::from_samples(
+            &[T::default()],
+            TracingOptions::default()
+                .allow_null_fields(true)
+                .enums_without_data_as_strings(true),
+        )?;
+
         let writer =
             ArrowWriter::try_new(output_file, Arc::new(Schema::new(fields.clone())), None)?;
 
@@ -45,14 +108,8 @@ impl<'a, T: Serialize + Deserialize<'a> + Clone, W: Write + Send> RecordWriter<'
         Ok(())
     }
 
-    pub fn handle_event(&mut self, data: &[u8]) -> i32 {
-        if data.len() < std::mem::size_of::<T>() {
-            return -1;
-        }
-
-        let msg = unsafe { &*(data.as_ptr() as *const T) };
-
-        match self.add(msg.clone()) {
+    pub fn handle_event(&mut self, msg: T) -> i32 {
+        match self.add(msg) {
             Ok(_) => 0,
             Err(e) => {
                 eprintln!("Error writing to file: {:?}", e);
@@ -62,10 +119,17 @@ impl<'a, T: Serialize + Deserialize<'a> + Clone, W: Write + Send> RecordWriter<'
     }
 }
 
-impl<'a, T: Serialize + Deserialize<'a> + Clone, W: Write + Send> Drop for RecordWriter<'a, T, W> {
+impl<'a, T: Serialize + Deserialize<'a> + Clone + Default, W: Write + Send> Drop
+    for RecordWriter<'a, T, W>
+{
     fn drop(&mut self) {
+        println!("flush records to the disk");
         self.writer.finish().unwrap();
     }
+}
+
+pub trait EventPoller {
+    fn poll(&mut self) -> Result<()>;
 }
 
 // generate test case
@@ -77,7 +141,7 @@ mod tests {
     use bytes::Bytes;
     use std::io::Cursor;
 
-    #[derive(Serialize, Deserialize, Clone, Debug)]
+    #[derive(Serialize, Deserialize, Clone, Debug, Default)]
     struct Record {
         a: f32,
         b: i32,

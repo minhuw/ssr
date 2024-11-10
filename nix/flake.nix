@@ -51,6 +51,7 @@
               linuxHeaders
               clang-tools
               llvmPackages_15.clangUseLLVM
+              lldb
               pkg-config
               nixfmt-rfc-style
 
@@ -66,6 +67,7 @@
             hardeningDisable = [
               "zerocallusedregs"
             ];
+
 
             shellHook = ''
               echo "Welcome to the development environment!"
