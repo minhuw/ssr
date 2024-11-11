@@ -1,7 +1,7 @@
 use anyhow::Result;
 use arrow::datatypes::{FieldRef, Schema};
 use lazy_static::lazy_static;
-use parquet::arrow::ArrowWriter;
+use parquet::{arrow::ArrowWriter, basic::Compression, file::properties::WriterProperties};
 use serde::{Deserialize, Serialize};
 use serde_arrow::schema::{SchemaLike, TracingOptions};
 use std::{
@@ -115,8 +115,15 @@ impl<'a, T: Serialize + Deserialize<'a> + Clone + Default, W: Write + Send> Reco
                 .enums_without_data_as_strings(true),
         )?;
 
-        let writer =
-            ArrowWriter::try_new(output_file, Arc::new(Schema::new(fields.clone())), None)?;
+        let props = WriterProperties::builder()
+            .set_compression(Compression::SNAPPY)
+            .build();
+
+        let writer = ArrowWriter::try_new(
+            output_file,
+            Arc::new(Schema::new(fields.clone())),
+            Some(props),
+        )?;
 
         Ok(Self {
             schema: fields,

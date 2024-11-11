@@ -44,6 +44,7 @@ struct DctcpEvent {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DctcpMessage {
     time: NaiveDateTime,
+    #[serde(flatten)]
     flow: Flow,
     snd_cwnd: u32,
     ssthresh: u32,

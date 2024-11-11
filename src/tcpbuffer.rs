@@ -63,6 +63,7 @@ impl TryFrom<i32> for EventType {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BufferMessage {
     time: NaiveDateTime,
+    #[serde(flatten)]
     flow: Flow,
     rx_buffer: u32,
     event_type: EventType,
