@@ -1,21 +1,20 @@
-use chrono::DateTime;
-use chrono::NaiveDateTime;
-use libbpf_rs::Link;
-use libbpf_rs::RingBuffer;
-use libbpf_rs::RingBufferBuilder;
-use std::fs::File;
-use std::mem::MaybeUninit;
-use std::os::fd::AsRawFd;
-use std::pin::Pin;
-
-use crate::common::{ConnectionFilterConfig, EventPoller, FlowBPF, RecordWriter, BOOT_TIME_NS};
 use anyhow::Result;
+use chrono::{DateTime, NaiveDateTime};
 use libbpf_rs::{
     skel::{OpenSkel, SkelBuilder},
     OpenObject,
 };
+use libbpf_rs::{Link, RingBuffer, RingBufferBuilder};
 use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::mem::MaybeUninit;
+use std::os::fd::AsRawFd;
+use std::pin::Pin;
 use std::time::Duration;
+
+use crate::common::{
+    ConnectionFilterConfig, EventPoller, Flow, FlowBPF, RecordWriter, BOOT_TIME_NS,
+};
 
 pub mod bpf {
     include!(concat!(
@@ -32,6 +31,7 @@ pub struct PacketEvent {
     seq: u32,
     ack: u32,
     len: u32,
+    wnd: u16,
     direction: u8,
     flags: u8,
 }
@@ -39,10 +39,12 @@ pub struct PacketEvent {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PacketMessage {
     time: NaiveDateTime,
-    cookie: u64,
+    #[serde(flatten)]
+    flow: Flow,
     seq: u32,
     ack: u32,
     len: u32,
+    wnd: u16,
     direction: u8,
     flags: u8,
 }
@@ -65,10 +67,11 @@ impl TryFrom<&[u8]> for PacketMessage {
         .naive_utc();
         Ok(PacketMessage {
             time: naive_datetime,
-            cookie: event.flow.socket_cookie,
+            flow: event.flow.socket_cookie.into(),
             seq: event.seq,
             ack: event.ack,
             len: event.len,
+            wnd: event.wnd,
             direction: event.direction,
             flags: event.flags,
         })
@@ -127,6 +130,6 @@ impl TCPPacketEventTracker {
 
 impl EventPoller for Pin<Box<TCPPacketEventTracker>> {
     fn poll(&mut self) -> Result<()> {
-        Ok(self.ringbuf.poll(Duration::from_millis(100))?)
+        Ok(self.ringbuf.poll(Duration::from_millis(1))?)
     }
 }

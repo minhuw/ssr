@@ -24,6 +24,7 @@ struct event {
     u32 seq;
     u32 ack;
     u32 len;
+    u16 wnd;
     u8 direction;
     u8 flags;
 };
@@ -67,6 +68,7 @@ int tcp_egress(struct __sk_buff *skb)
     e->seq = bpf_ntohl(th->seq);
     e->ack = bpf_ntohl(th->ack_seq);
     e->len = payload_len;
+    e->wnd = bpf_ntohs(th->window);
     e->direction = 1;
     e->flags = ((th->fin) << 0) |
                ((th->syn) << 1) |
@@ -122,6 +124,7 @@ int tcp_ingress(struct __sk_buff *skb)
     e->seq = bpf_ntohl(th->seq);
     e->ack = bpf_ntohl(th->ack_seq);
     e->len = payload_len;
+    e->wnd = bpf_ntohs(th->window);
     e->direction = 0;
     e->flags = ((th->fin) << 0) |
                ((th->syn) << 1) |

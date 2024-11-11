@@ -44,6 +44,7 @@ pub struct Flow {
     pub pid: u32,
     pub comm: String,
     pub conn_cookie: u64,
+    #[serde(flatten)]
     pub conn_tuple: NetTuple,
 }
 
@@ -58,6 +59,22 @@ impl From<&FlowBPF> for Flow {
                 .read()
                 .unwrap()
                 .get(&flow.socket_cookie)
+                .unwrap_or(&NetTuple::default())
+                .clone(),
+        }
+    }
+}
+
+impl From<u64> for Flow {
+    fn from(cookie: u64) -> Self {
+        Flow {
+            pid: 0,
+            comm: String::new(),
+            conn_cookie: cookie,
+            conn_tuple: CONNECTION_MAP
+                .read()
+                .unwrap()
+                .get(&cookie)
                 .unwrap_or(&NetTuple::default())
                 .clone(),
         }
