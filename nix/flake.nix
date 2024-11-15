@@ -33,8 +33,8 @@
       in
       {
         packages = rec {
-          tcpbuffer = pkgs.callPackage ./package.nix { };
-          default = tcpbuffer;
+          ssr = pkgs.callPackage ./package.nix { };
+          default = ssr;
         };
 
         devShells = {

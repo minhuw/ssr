@@ -7,7 +7,7 @@
   rustPlatform,
   zlib,
 }: rustPlatform.buildRustPackage { 
-    pname = "tcpbuffer";
+    pname = "ssr";
     version = "0.0.1";
 
     src = ../.;
