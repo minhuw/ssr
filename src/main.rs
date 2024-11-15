@@ -83,6 +83,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let exit_clone = Arc::clone(&exit);
 
     ctrlc::set_handler(move || {
+        println!("got ctrl-c, exiting...");
         exit_clone.store(true, Ordering::SeqCst);
     })?;
 
