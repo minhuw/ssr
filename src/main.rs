@@ -96,5 +96,5 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn libbpf_print_fn(level: PrintLevel, msg: std::string::String) {
-    println!("[{:?}] {}", level, msg);
+    print!("[{:?}] {}", level, msg);
 }
