@@ -20,6 +20,10 @@ static inline int filter_conn(struct sock *sk, __u16 tgt_src_port, __u16 tgt_dst
   return 0;
 }
 
+#define BPF_FUNC_ktime_get_real_ns 212  // where NN is the helper number
+
+static long (*bpf_ktime_get_real_ns)(void) = (void *) BPF_FUNC_ktime_get_real_ns;
+
 #define PRINTK_DEBUG 0
 
 #endif /* __TCPBUFFER_H */

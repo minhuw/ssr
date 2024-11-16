@@ -54,7 +54,7 @@ int BPF_PROG(tcp_rcv_established_entry, struct sock *sk, struct sk_buff *skb) {
     return 0;
   }
 
-  e->timestamp_ns = bpf_ktime_get_tai_ns();
+  e->timestamp_ns = bpf_ktime_get_real_ns();
 
   e->flow.pid = bpf_get_current_pid_tgid() >> 32;
   e->flow.socket_cookie = cookie;
@@ -92,7 +92,7 @@ int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
     return 0;
   }
 
-  e->timestamp_ns = bpf_ktime_get_tai_ns();
+  e->timestamp_ns = bpf_ktime_get_real_ns();
 
   e->flow.pid = bpf_get_current_pid_tgid() >> 32;
   bpf_get_current_comm(&e->flow.comm, sizeof(e->flow.comm));
@@ -131,12 +131,12 @@ int BPF_PROG(tcp_recvmsg_entry, struct sock *sk, struct msghdr *msg, size_t len,
     return 0;
   }
 
-  e->timestamp_ns = bpf_ktime_get_tai_ns();
+  e->timestamp_ns = bpf_ktime_get_real_ns();
 
   e->flow.pid = bpf_get_current_pid_tgid() >> 32;
   bpf_get_current_comm(&e->flow.comm, sizeof(e->flow.comm));
   e->flow.socket_cookie = cookie;
-  e->timestamp_ns = bpf_ktime_get_tai_ns();
+  e->timestamp_ns = bpf_ktime_get_real_ns();
 
   e->event_type = APP_RECV_EVENT;
   e->rx_buffer = rcv_nxt - copied_seq;
@@ -171,7 +171,7 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
     return 0;
   }
 
-  e->timestamp_ns = bpf_ktime_get_tai_ns();
+  e->timestamp_ns = bpf_ktime_get_real_ns();
 
   e->flow.pid = bpf_get_current_pid_tgid() >> 32;
   bpf_get_current_comm(&e->flow.comm, sizeof(e->flow.comm));

@@ -54,7 +54,7 @@ int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
         return 0;
 
     // Prepare event data
-    event->timestamp_ns = bpf_ktime_get_tai_ns();
+    event->timestamp_ns = bpf_ktime_get_real_ns();
 
     event->flow.pid = bpf_get_current_pid_tgid() >> 32;
     bpf_get_current_comm(&event->flow.comm, sizeof(event->flow.comm));
