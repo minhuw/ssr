@@ -60,7 +60,7 @@ int tcp_egress(struct __sk_buff *skb)
     u32 total_len = bpf_ntohs(iph->tot_len);
     u32 payload_len = total_len - ip_hdr_len - tcp_hdr_len;
 
-    e->timestamp_ns = bpf_ktime_get_ns();
+    e->timestamp_ns = bpf_ktime_get_tai_ns();
 
     e->flow.pid = 0;
     e->flow.socket_cookie = bpf_get_socket_cookie(skb);
@@ -116,7 +116,7 @@ int tcp_ingress(struct __sk_buff *skb)
     u32 total_len = bpf_ntohs(iph->tot_len);
     u32 payload_len = total_len - ip_hdr_len - tcp_hdr_len;
 
-    e->timestamp_ns = bpf_ktime_get_ns();
+    e->timestamp_ns = bpf_ktime_get_tai_ns();
 
     e->flow.pid = 0;
     e->flow.socket_cookie = bpf_get_socket_cookie(skb);

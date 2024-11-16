@@ -24,9 +24,7 @@ pub mod bpf {
 
 use bpf::{DctcpSkel, DctcpSkelBuilder, OpenDctcpSkel};
 
-use crate::common::{
-    ConnectionFilterConfig, EventPoller, Flow, FlowBPF, RecordWriter, BOOT_TIME_NS,
-};
+use crate::common::{ConnectionFilterConfig, EventPoller, Flow, FlowBPF, RecordWriter};
 
 #[repr(C)]
 struct DctcpEvent {
@@ -83,7 +81,7 @@ impl TryFrom<&[u8]> for DctcpMessage {
 
         let event = unsafe { &*(data.as_ptr() as *const DctcpEvent) };
 
-        let absolute_timestamp_ns = *BOOT_TIME_NS + event.timestamp_ns;
+        let absolute_timestamp_ns = event.timestamp_ns;
         let naive_datetime = DateTime::from_timestamp(
             (absolute_timestamp_ns / 1_000_000_000) as i64,
             (absolute_timestamp_ns % 1_000_000_000) as u32,

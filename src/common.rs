@@ -12,23 +12,7 @@ use std::{
 };
 
 lazy_static! {
-    pub static ref BOOT_TIME_NS: u64 = get_boot_time_ns().unwrap();
     pub static ref CONNECTION_MAP: RwLock<HashMap<u64, NetTuple>> = RwLock::new(HashMap::new());
-}
-
-fn get_boot_time_ns() -> Result<u64, Box<dyn std::error::Error>> {
-    let stat_contents = std::fs::read_to_string("/proc/stat")?;
-    for line in stat_contents.lines() {
-        if line.starts_with("btime ") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() == 2 {
-                let btime = parts[1].parse::<u64>()?;
-                // Convert btime (seconds since epoch) to nanoseconds
-                return Ok(btime * 1_000_000_000);
-            }
-        }
-    }
-    Err("Could not find btime in /proc/stat".into())
 }
 
 #[repr(C)]
