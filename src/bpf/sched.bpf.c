@@ -55,7 +55,7 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx)
         return 0;
     }
 
-    e->timestamp_ns = bpf_ktime_get_ns();
+    e->timestamp_ns = bpf_ktime_get_tai_ns();
     e->event_type = SCHED_SWITCH;
     e->pid = bpf_get_current_pid_tgid() >> 32;
     e->prev_pid = ctx->prev_pid;
