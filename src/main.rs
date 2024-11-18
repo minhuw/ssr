@@ -14,6 +14,7 @@ use tcppacket::TCPPacketEventTracker;
 mod common;
 mod dctcp;
 mod fivetuple;
+mod sched;
 mod tcpbuffer;
 mod tcppacket;
 
@@ -74,6 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "tcpbuffer" => Box::new(TCPBufferEventTracker::new(&filter, result_file)?),
                 "dctcp" => Box::new(DctcpEventTracker::new(&filter, result_file)?),
                 "tcppacket" => Box::new(TCPPacketEventTracker::new(&filter, result_file)?),
+                "sched" => Box::new(sched::SchedTracker::new(result_file)?),
                 _ => panic!("Unknown event type"),
             }
         });

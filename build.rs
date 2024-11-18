@@ -33,4 +33,5 @@ fn main() {
     build("dctcp");
     build("tcppacket");
     build("fivetuple");
+    build("sched");
 }
