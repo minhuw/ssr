@@ -27,7 +27,7 @@ struct buffer_message_t {
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
-  __uint(max_entries, 1 << 24);
+  __uint(max_entries, 32 * 1024 * 1024);
 } events SEC(".maps");
 
 SEC("fentry/tcp_rcv_established")
