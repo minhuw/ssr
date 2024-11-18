@@ -102,13 +102,47 @@ impl TryFrom<u32> for Process {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SoftirqVec {
+    Unknown = 0,
+    Timer = 1,
+    NetTx = 2,
+    NetRx = 3,
+    Block = 4,
+    BlockIo = 5,
+    Tasklet = 6,
+    Sched = 7,
+    Hrtimer = 8,
+    Rcu = 9,
+}
+
+impl TryFrom<u32> for SoftirqVec {
+    type Error = anyhow::Error;
+
+    fn try_from(vec: u32) -> Result<Self> {
+        match vec {
+            1 => Ok(SoftirqVec::Timer),
+            2 => Ok(SoftirqVec::NetTx),
+            3 => Ok(SoftirqVec::NetRx),
+            4 => Ok(SoftirqVec::Block),
+            5 => Ok(SoftirqVec::BlockIo),
+            6 => Ok(SoftirqVec::Tasklet),
+            7 => Ok(SoftirqVec::Sched),
+            8 => Ok(SoftirqVec::Hrtimer),
+            9 => Ok(SoftirqVec::Rcu),
+            _ => Ok(SoftirqVec::Unknown),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SchedMessage {
     time: NaiveDateTime,
     #[serde(flatten)]
     pid: Process,
-    prev_pid: u32,
-    next_pid: u32,
-    softirq_vec: u32,
+    prev_pid: Process,
+    next_pid: Process,
+    softirq_vec: SoftirqVec,
     cpu_id: u32,
     event_type: EventType,
 }
@@ -120,9 +154,9 @@ impl Default for SchedMessage {
                 .unwrap_or_default()
                 .naive_utc(),
             pid: Process::default(),
-            prev_pid: 0,
-            next_pid: 0,
-            softirq_vec: 0,
+            prev_pid: Process::default(),
+            next_pid: Process::default(),
+            softirq_vec: SoftirqVec::Unknown,
             cpu_id: 0,
             event_type: EventType::SchedSwitch,
         }
@@ -148,9 +182,9 @@ impl TryFrom<&[u8]> for SchedMessage {
         Ok(SchedMessage {
             time: naive_datetime,
             pid: event.pid.try_into()?,
-            prev_pid: event.prev_pid,
-            next_pid: event.next_pid,
-            softirq_vec: event.softirq_vec,
+            prev_pid: event.prev_pid.try_into()?,
+            next_pid: event.next_pid.try_into()?,
+            softirq_vec: event.softirq_vec.try_into()?,
             cpu_id: event.cpu_id,
             event_type: event.event_type.try_into()?,
         })

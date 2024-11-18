@@ -57,7 +57,7 @@ int handle_sched_switch(struct trace_event_raw_sched_switch *ctx)
 
     e->timestamp_ns = bpf_ktime_get_tai_ns();
     e->event_type = SCHED_SWITCH;
-    e->pid = bpf_get_current_pid_tgid() >> 32;
+    e->pid = bpf_get_current_pid_tgid();
     e->prev_pid = ctx->prev_pid;
     e->next_pid = ctx->next_pid;
     e->event_type = SCHED_SWITCH;
@@ -85,7 +85,7 @@ int handle_sched_exec(struct trace_event_raw_sched_process_exec *ctx)
 
     e->timestamp_ns = bpf_ktime_get_tai_ns();
     e->event_type = SCHED_EXEC;
-    e->pid = bpf_get_current_pid_tgid() >> 32;
+    e->pid = bpf_get_current_pid_tgid();
     e->prev_pid = 0;
     e->next_pid = 0;
     e->cpu_id = bpf_get_smp_processor_id();
@@ -110,7 +110,7 @@ int handle_sched_exit(struct trace_event_raw_sched_process_template *ctx)
 
     e->timestamp_ns = bpf_ktime_get_tai_ns();
     e->event_type = SCHED_EXIT;
-    e->pid = bpf_get_current_pid_tgid() >> 32;
+    e->pid = bpf_get_current_pid_tgid();
     e->prev_pid = 0;
     e->next_pid = 0;
     e->cpu_id = bpf_get_smp_processor_id();
@@ -135,7 +135,7 @@ int handle_softirq_entry(struct trace_event_raw_softirq *ctx)
 
     e->timestamp_ns = bpf_ktime_get_tai_ns();
     e->event_type = SOFTIRQ_ENTRY;
-    e->pid = bpf_get_current_pid_tgid() >> 32;
+    e->pid = bpf_get_current_pid_tgid();
     e->prev_pid = 0;
     e->next_pid = 0;
     e->softirq_vec = ctx->vec;
@@ -161,7 +161,7 @@ int handle_softirq_exit(struct trace_event_raw_softirq *ctx)
 
     e->timestamp_ns = bpf_ktime_get_tai_ns();
     e->event_type = SOFTIRQ_EXIT;
-    e->pid = bpf_get_current_pid_tgid() >> 32;
+    e->pid = bpf_get_current_pid_tgid();
     e->prev_pid = 0;
     e->next_pid = 0;
     e->softirq_vec = ctx->vec;
