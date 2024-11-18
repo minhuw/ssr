@@ -159,6 +159,6 @@ impl TCPBufferEventTracker {
 
 impl EventPoller for Pin<Box<TCPBufferEventTracker>> {
     fn poll(&mut self) -> Result<()> {
-        Ok(self.ringbuf.poll(Duration::from_millis(100))?)
+        Ok(self.ringbuf.poll(Duration::from_millis(1))?)
     }
 }

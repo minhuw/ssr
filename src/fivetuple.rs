@@ -133,6 +133,6 @@ impl CookieTracker {
 
 impl EventPoller for Pin<Box<CookieTracker>> {
     fn poll(&mut self) -> Result<()> {
-        Ok(self.ringbuf.poll(Duration::from_millis(100))?)
+        Ok(self.ringbuf.poll(Duration::from_millis(1))?)
     }
 }
