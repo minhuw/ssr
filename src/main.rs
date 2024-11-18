@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tcpbuffer::TCPBufferEventTracker;
 use tcppacket::TCPPacketEventTracker;
+use utils::corelist::CoreList;
 
 mod common;
 mod dctcp;
@@ -17,6 +18,7 @@ mod fivetuple;
 mod sched;
 mod tcpbuffer;
 mod tcppacket;
+pub mod utils;
 
 fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
 where
@@ -50,6 +52,9 @@ struct Args {
 
     #[arg(short, long,  value_parser = parse_key_val::<String, String>)]
     events: Vec<(String, String)>,
+
+    #[arg(long, value_parser = CoreList::parser(), default_value="")]
+    cores: CoreList,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -75,10 +80,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "tcpbuffer" => Box::new(TCPBufferEventTracker::new(&filter, result_file)?),
                 "dctcp" => Box::new(DctcpEventTracker::new(&filter, result_file)?),
                 "tcppacket" => Box::new(TCPPacketEventTracker::new(&filter, result_file)?),
-                "sched" => Box::new(sched::SchedTracker::new(result_file)?),
                 _ => panic!("Unknown event type"),
             }
         });
+    }
+
+    if !args.cores.is_empty() {
+        poller.insert(
+            "core".into(),
+            Box::new(sched::SchedTracker::new(
+                File::create("sched.parquet")?,
+                args.cores,
+            )?),
+        );
     }
 
     let exit: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));

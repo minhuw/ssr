@@ -3,12 +3,14 @@ use chrono::NaiveDateTime;
 use libbpf_rs::RingBuffer;
 use libbpf_rs::RingBufferBuilder;
 use pin_project::pin_project;
+use std::collections::hash_map::Entry;
 use std::fs::File;
 use std::mem::transmute;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
 use crate::common::{EventPoller, RecordWriter};
+use crate::utils::corelist::CoreList;
 use anyhow::Result;
 use libbpf_rs::{
     skel::{OpenSkel, Skel, SkelBuilder},
@@ -16,6 +18,11 @@ use libbpf_rs::{
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+// store PID -> comm mapping
+lazy_static::lazy_static! {
+    static ref PID_COMM_MAP: std::sync::Mutex<std::collections::HashMap<u32, String>> = std::sync::Mutex::new(std::collections::HashMap::new());
+}
 
 pub mod bpf {
     include!(concat!(
@@ -64,10 +71,41 @@ impl TryFrom<i32> for EventType {
     }
 }
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Process {
+    pid: u32,
+    name: String,
+}
+
+impl TryFrom<u32> for Process {
+    type Error = anyhow::Error;
+
+    fn try_from(pid: u32) -> Result<Self> {
+        // insert if not exist
+        let values = match PID_COMM_MAP.lock().unwrap().entry(pid) {
+            Entry::Occupied(o) => o.into_mut().clone(),
+            Entry::Vacant(v) => v
+                .insert({
+                    if let Ok(name) = std::fs::read_to_string(format!("/proc/{}/comm", pid)) {
+                        name
+                    } else {
+                        "unknown".to_string()
+                    }
+                })
+                .clone(),
+        };
+        Ok(Process {
+            pid,
+            name: values.clone(),
+        })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SchedMessage {
     time: NaiveDateTime,
-    pid: u32,
+    #[serde(flatten)]
+    pid: Process,
     prev_pid: u32,
     next_pid: u32,
     softirq_vec: u32,
@@ -81,7 +119,7 @@ impl Default for SchedMessage {
             time: DateTime::from_timestamp(0, 0)
                 .unwrap_or_default()
                 .naive_utc(),
-            pid: 0,
+            pid: Process::default(),
             prev_pid: 0,
             next_pid: 0,
             softirq_vec: 0,
@@ -109,7 +147,7 @@ impl TryFrom<&[u8]> for SchedMessage {
 
         Ok(SchedMessage {
             time: naive_datetime,
-            pid: event.pid,
+            pid: event.pid.try_into()?,
             prev_pid: event.prev_pid,
             next_pid: event.next_pid,
             softirq_vec: event.softirq_vec,
@@ -128,10 +166,12 @@ pub struct SchedTracker {
 }
 
 impl SchedTracker {
-    pub fn new(result_file: File) -> Result<Pin<Box<Self>>> {
+    pub fn new(result_file: File, cores: CoreList) -> Result<Pin<Box<Self>>> {
         let skel_builder = SchedSkelBuilder::default();
         let mut open_object: Box<MaybeUninit<OpenObject>> = Box::new(MaybeUninit::uninit());
         let open_skel: OpenSchedSkel = unsafe { transmute(skel_builder.open(&mut open_object)?) };
+
+        open_skel.maps.rodata_data.core_bitmap = cores.to_bitmap()?;
 
         let mut skel = open_skel.load()?;
         skel.attach()?;
@@ -142,6 +182,7 @@ impl SchedTracker {
 
         builder.add(&skel.maps.events, move |data| {
             if let Ok(data) = data.try_into() {
+                println!("{:?}", data);
                 writer.handle_event(data);
                 0
             } else {

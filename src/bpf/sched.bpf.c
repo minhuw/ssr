@@ -9,6 +9,8 @@ struct {
     __uint(max_entries, 256 * 1024);
 } events SEC(".maps");
 
+const volatile u64 core_bitmap = 0;
+
 enum {
     SCHED_SWITCH = 1,
     SCHED_EXEC = 2,
@@ -27,11 +29,27 @@ struct sched_message_t {
     u32 cpu_id;
 };
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 10240);
+    __type(key, pid_t);
+    __type(value, char[TASK_COMM_LEN]);
+} task_comms SEC(".maps");
+
+static inline bool is_current_core_traced(void)
+{
+    return !core_bitmap || (core_bitmap & (1 << bpf_get_smp_processor_id()));
+}
+
 SEC("tp/sched/sched_switch")
 int handle_sched_switch(struct trace_event_raw_sched_switch *ctx)
 {
     struct sched_message_t *e;
-    
+
+    if (!is_current_core_traced()) {
+        return 0;
+    }
+
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) {
         return 0;
@@ -54,7 +72,12 @@ SEC("tp/sched/sched_process_exec")
 int handle_sched_exec(struct trace_event_raw_sched_process_exec *ctx)
 {
     struct sched_message_t *e;
-    
+
+    if (!is_current_core_traced()) {
+        return 0;
+    }
+
+
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) {
         return 0;
@@ -75,7 +98,11 @@ SEC("tp/sched/sched_process_exit")
 int handle_sched_exit(struct trace_event_raw_sched_process_template *ctx)
 {
     struct sched_message_t *e;
-    
+
+    if (!is_current_core_traced()) {
+        return 0;
+    }
+
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) {
         return 0;
