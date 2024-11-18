@@ -182,7 +182,6 @@ impl SchedTracker {
 
         builder.add(&skel.maps.events, move |data| {
             if let Ok(data) = data.try_into() {
-                println!("{:?}", data);
                 writer.handle_event(data);
                 0
             } else {

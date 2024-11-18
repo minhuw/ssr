@@ -193,7 +193,7 @@ mod tests {
         // Test mixed
         assert_eq!(
             "0,2-4,6".parse::<CoreList>().unwrap().to_bitmap().unwrap(),
-            0b1011111
+            0b1011101
         );
 
         // Test error on too large core
