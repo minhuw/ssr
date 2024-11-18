@@ -123,7 +123,11 @@ SEC("tp/irq/softirq_entry")
 int handle_softirq_entry(struct trace_event_raw_softirq *ctx)
 {
     struct sched_message_t *e;
-    
+
+    if (!is_current_core_traced()) {
+        return 0;
+    }
+
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) {
         return 0;
@@ -145,7 +149,11 @@ SEC("tp/irq/softirq_exit")
 int handle_softirq_exit(struct trace_event_raw_softirq *ctx)
 {
     struct sched_message_t *e;
-    
+
+    if (!is_current_core_traced()) {
+        return 0;
+    }
+
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) {
         return 0;
