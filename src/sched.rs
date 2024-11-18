@@ -86,7 +86,7 @@ impl TryFrom<u32> for Process {
             Entry::Occupied(o) => o.into_mut().clone(),
             Entry::Vacant(v) => v
                 .insert({
-                    if let Ok(name) = std::fs::read_to_string(format!("/proc/{}/comm", pid)) {
+                    if let Ok(name) = std::fs::read_to_string(format!("/proc/{}/comm", pid).trim_end()) {
                         name
                     } else {
                         "unknown".to_string()
