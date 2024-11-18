@@ -55,6 +55,9 @@ struct Args {
 
     #[arg(long, value_parser = CoreList::parser(), default_value="")]
     cores: CoreList,
+
+    #[arg(long, default_value = "")]
+    cores_file: String,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -89,7 +92,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         poller.insert(
             "core".into(),
             Box::new(sched::SchedTracker::new(
-                File::create("sched.parquet")?,
+                File::create({
+                    if args.cores_file.is_empty() {
+                        "sched.parquet".to_string()
+                    } else {
+                        args.cores_file.clone()
+                    }
+                })?,
                 args.cores,
             )?),
         );
