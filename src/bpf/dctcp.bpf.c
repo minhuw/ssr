@@ -24,6 +24,7 @@ struct dctcp_message_t {
     u32 delivered_ce;
     u32 srtt;
     u32 mdev;
+    u32 snd_una;
 };
 
 struct {
@@ -67,6 +68,7 @@ int BPF_PROG(trace_tcp_cong_avoid, struct sock *sk) {
     event->delivered_ce = BPF_CORE_READ(tp, delivered_ce);
     event->srtt = BPF_CORE_READ(tp, srtt_us) >> 3;
     event->mdev = BPF_CORE_READ(tp, mdev_us);
+    event->snd_una = BPF_CORE_READ(tp, snd_una);
 
     bpf_ringbuf_submit(event, 0);
 

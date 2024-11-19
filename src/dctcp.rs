@@ -37,6 +37,7 @@ struct DctcpEvent {
     delivered_ce: u32,
     srtt: u32,
     mdev: u32,
+    snd_una: u32
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -51,6 +52,7 @@ struct DctcpMessage {
     delivered_ce: u32,
     srtt: u32,
     mdev: u32,
+    snd_una: u32
 }
 
 impl Default for DctcpMessage {
@@ -67,6 +69,7 @@ impl Default for DctcpMessage {
             delivered_ce: 0,
             srtt: 0,
             mdev: 0,
+            snd_una: 0,
         }
     }
 }
@@ -99,6 +102,7 @@ impl TryFrom<&[u8]> for DctcpMessage {
             delivered_ce: event.delivered_ce,
             srtt: event.srtt,
             mdev: event.mdev,
+            snd_una: event.snd_una
         })
     }
 }
