@@ -37,7 +37,7 @@ struct DctcpEvent {
     delivered_ce: u32,
     srtt: u32,
     mdev: u32,
-    snd_una: u32
+    snd_una: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,7 +52,7 @@ struct DctcpMessage {
     delivered_ce: u32,
     srtt: u32,
     mdev: u32,
-    snd_una: u32
+    snd_una: u32,
 }
 
 impl Default for DctcpMessage {
@@ -102,7 +102,7 @@ impl TryFrom<&[u8]> for DctcpMessage {
             delivered_ce: event.delivered_ce,
             srtt: event.srtt,
             mdev: event.mdev,
-            snd_una: event.snd_una
+            snd_una: event.snd_una,
         })
     }
 }
@@ -124,7 +124,7 @@ impl DctcpEventTracker {
         let mut open_object = Box::new(MaybeUninit::uninit());
         let open_skel: OpenDctcpSkel = unsafe { transmute(skel_builder.open(&mut open_object)?) };
 
-        open_skel.maps.rodata_data.tgt_src_port = filter_config.src_port.to_be();
+        open_skel.maps.rodata_data.tgt_src_port = filter_config.src_port;
         open_skel.maps.rodata_data.tgt_dst_port = filter_config.dst_port.to_be();
 
         let mut skel = open_skel.load()?;

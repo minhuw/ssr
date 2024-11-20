@@ -126,7 +126,7 @@ impl TCPBufferEventTracker {
             unsafe { transmute(skel_builder.open(&mut open_object)?) };
 
         open_skel.maps.rodata_data.tgt_src_port = filter_config.src_port;
-        open_skel.maps.rodata_data.tgt_dst_port = filter_config.dst_port;
+        open_skel.maps.rodata_data.tgt_dst_port = filter_config.dst_port.to_be();
 
         let mut skel = open_skel.load()?;
         skel.attach()?;

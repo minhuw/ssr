@@ -93,7 +93,7 @@ impl TCPPacketEventTracker {
         let open_skel: OpenTcppacketSkel = skel_builder.open(&mut open_object)?;
 
         open_skel.maps.rodata_data.tgt_src_port = filter_config.src_port;
-        open_skel.maps.rodata_data.tgt_dst_port = filter_config.dst_port;
+        open_skel.maps.rodata_data.tgt_dst_port = filter_config.dst_port.to_be();
 
         let skel = open_skel.load()?;
 
