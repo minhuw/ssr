@@ -130,10 +130,7 @@ int tcp_ingress(struct __sk_buff *skb) {
 SEC("fentry/tcp_v4_do_rcv")
 int BPF_PROG(tcp_v4_do_rcv, struct sock *sk, struct sk_buff *skb) {
   struct event *e;
-  struct iphdr *iph;
   struct tcphdr *th;
-
-
   // Get TCP header
   th = (struct tcphdr *)BPF_CORE_READ(skb, data);
 

@@ -3,6 +3,8 @@
 
 #define TASK_COMM_LEN 16
 
+#include "vmlinux.h"
+
 struct flow {
     u32 pid;
     char comm[TASK_COMM_LEN];
@@ -22,4 +24,4 @@ static inline int filter_conn(struct sock *sk, __u16 tgt_src_port, __u16 tgt_dst
 
 #define PRINTK_DEBUG 0
 
-#endif /* __TCPBUFFER_H */
+#endif /* __SSR_COMMON_H */

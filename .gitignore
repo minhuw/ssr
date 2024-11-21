@@ -5,3 +5,7 @@
 
 # direnv
 .direnv
+
+# clangd
+compile_commands.json
+.cache

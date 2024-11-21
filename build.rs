@@ -29,7 +29,7 @@ fn build(src: &str) {
 
 // build.rs
 fn main() {
-    build("tcpbuffer");
+    build("recvstory");
     build("dctcp");
     build("tcppacket");
     build("fivetuple");
