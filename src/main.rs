@@ -4,6 +4,7 @@ use dctcp::DctcpEventTracker;
 use fivetuple::CookieTracker;
 use libbpf_rs::PrintLevel;
 use recvstory::RecvStoryEventTracker;
+use sendstory::SendStoryEventTracker;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
@@ -17,6 +18,7 @@ mod dctcp;
 mod fivetuple;
 mod recvstory;
 mod sched;
+mod sendstory;
 mod tcppacket;
 pub mod utils;
 
@@ -84,6 +86,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let result_file = File::create(value)?;
             match key.as_str() {
                 "recvstory" => Box::new(RecvStoryEventTracker::new(&filter, result_file)?),
+                "sendstory" => Box::new(SendStoryEventTracker::new(&filter, result_file)?),
                 "dctcp" => Box::new(DctcpEventTracker::new(&filter, result_file)?),
                 "tcppacket" => Box::new(TCPPacketEventTracker::new(&filter, result_file)?),
                 _ => panic!("Unknown event type"),

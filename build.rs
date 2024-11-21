@@ -34,4 +34,5 @@ fn main() {
     build("tcppacket");
     build("fivetuple");
     build("sched");
+    build("sendstory");
 }

@@ -258,7 +258,8 @@ int BPF_PROG(tcp_ack, struct sock *sk, const struct sk_buff *skb, int flag) {
 }
 
 SEC("fentry/tcp_add_backlog")
-int BPF_PROG(tcp_add_backlog, struct sock *sk, struct sk_buff *skb, enum skb_drop_reason *reason) {
+int BPF_PROG(tcp_add_backlog, struct sock *sk, struct sk_buff *skb,
+             enum skb_drop_reason *reason) {
   struct event *e;
   struct iphdr *iph;
   struct tcphdr *th;

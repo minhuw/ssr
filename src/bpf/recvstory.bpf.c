@@ -2,15 +2,14 @@
 
 #include "vmlinux.h"
 #include <bpf/bpf_core_read.h>
+#include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-#include <bpf/bpf_endian.h>
 
 #include "common.h"
 
 const volatile __u16 tgt_src_port = 0;
 const volatile __u16 tgt_dst_port = 0;
-
 
 enum {
   PACKET = 1,
@@ -21,7 +20,7 @@ enum {
   PACKET_QUEUED = 6,
 };
 
-struct buffer_message_t {
+struct recvstory_message_t {
   u64 timestamp_ns;
   struct flow flow;
   int event_type;
@@ -67,8 +66,8 @@ int BPF_PROG(tcp_rcv_established_entry, struct sock *sk, struct sk_buff *skb) {
     return 0;
   }
 
-  struct buffer_message_t *e =
-      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+  struct recvstory_message_t *e =
+      bpf_ringbuf_reserve(&events, sizeof(struct recvstory_message_t), 0);
 
   if (!e) {
     return 0;
@@ -96,8 +95,8 @@ int BPF_PROG(tcp_rcv_established_exit, struct sock *sk, struct sk_buff *skb) {
     return 0;
   }
 
-  struct buffer_message_t *e =
-      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+  struct recvstory_message_t *e =
+      bpf_ringbuf_reserve(&events, sizeof(struct recvstory_message_t), 0);
 
   if (!e) {
     return 0;
@@ -134,8 +133,8 @@ int BPF_PROG(tcp_recvmsg_entry, struct sock *sk, struct msghdr *msg, size_t len,
              rcv_nxt, copied_seq, rcv_nxt - copied_seq);
 #endif
 
-  struct buffer_message_t *e =
-      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+  struct recvstory_message_t *e =
+      bpf_ringbuf_reserve(&events, sizeof(struct recvstory_message_t), 0);
   if (!e) {
     return 0;
   }
@@ -164,8 +163,8 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
     return 0;
   }
 
-  struct buffer_message_t *e =
-      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+  struct recvstory_message_t *e =
+      bpf_ringbuf_reserve(&events, sizeof(struct recvstory_message_t), 0);
   if (!e) {
     return 0;
   }
@@ -192,8 +191,8 @@ int BPF_PROG(tcp_add_backlog_exit, struct sock *sk, struct sk_buff *skb,
     return 0;
   }
 
-  struct buffer_message_t *e =
-      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+  struct recvstory_message_t *e =
+      bpf_ringbuf_reserve(&events, sizeof(struct recvstory_message_t), 0);
 
   if (!e) {
     return 0;
@@ -222,8 +221,8 @@ int BPF_PROG(__tcp_send_ack_exit, struct sock *sk, u32 rcv_nxt) {
     return 0;
   }
 
-  struct buffer_message_t *e =
-      bpf_ringbuf_reserve(&events, sizeof(struct buffer_message_t), 0);
+  struct recvstory_message_t *e =
+      bpf_ringbuf_reserve(&events, sizeof(struct recvstory_message_t), 0);
 
   if (!e) {
     return 0;
