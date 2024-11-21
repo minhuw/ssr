@@ -80,10 +80,6 @@ pub struct TCPPacketEventTracker {
     ringbuf: RingBuffer<'static>,
     _ingress_link: Link,
     _egress_link: Link,
-    _tcp_do_rcv_link: Link,
-    _tcp_rcv_established_link: Link,
-    _tcp_ack: Link,
-    _tcp_add_backlogs_link: Link,
     _open_object: Box<MaybeUninit<OpenObject>>,
 }
 
@@ -104,10 +100,6 @@ impl TCPPacketEventTracker {
         let cgroup = std::fs::File::open("/sys/fs/cgroup")?;
         let ingress_link = { skel.progs.tcp_ingress.attach_cgroup(cgroup.as_raw_fd())? };
         let egress_link = { skel.progs.tcp_egress.attach_cgroup(cgroup.as_raw_fd())? };
-        let tcp_v4_do_rcv_link = { skel.progs.tcp_v4_do_rcv.attach()? };
-        let tcp_rcv_established_link = { skel.progs.tcp_rcv_established.attach()? };
-        let tcp_add_backlogs_link = { skel.progs.tcp_add_backlog.attach()? };
-        let tcp_ack_link = { skel.progs.tcp_ack.attach()? };
 
         let mut writer: RecordWriter<'_, PacketMessage, File> = RecordWriter::new(result_file)?;
 
@@ -129,10 +121,6 @@ impl TCPPacketEventTracker {
             ringbuf,
             _ingress_link: ingress_link,
             _egress_link: egress_link,
-            _tcp_do_rcv_link: tcp_v4_do_rcv_link,
-            _tcp_rcv_established_link: tcp_rcv_established_link,
-            _tcp_add_backlogs_link: tcp_add_backlogs_link,
-            _tcp_ack: tcp_ack_link,
             _open_object: Box::new(MaybeUninit::uninit()),
         }))
     }
