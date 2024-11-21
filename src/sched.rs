@@ -1,5 +1,6 @@
 use chrono::DateTime;
 use chrono::NaiveDateTime;
+use libbpf_rs::Link;
 use libbpf_rs::RingBuffer;
 use libbpf_rs::RingBufferBuilder;
 use pin_project::pin_project;
@@ -13,11 +14,14 @@ use crate::common::{EventPoller, RecordWriter};
 use crate::utils::corelist::CoreList;
 use anyhow::Result;
 use libbpf_rs::{
-    skel::{OpenSkel, Skel, SkelBuilder},
+    skel::{OpenSkel, SkelBuilder},
     OpenObject,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+
+serde_with::with_prefix!(prev "prev_");
+serde_with::with_prefix!(next "next_");
 
 // store PID -> comm mapping
 lazy_static::lazy_static! {
@@ -142,7 +146,9 @@ pub struct SchedMessage {
     time: NaiveDateTime,
     #[serde(flatten)]
     pid: Process,
+    #[serde(flatten, with = "prev")]
     prev_pid: Process,
+    #[serde(flatten, with = "next")]
     next_pid: Process,
     softirq_vec: SoftirqVec,
     cpu_id: u32,
@@ -195,6 +201,7 @@ impl TryFrom<&[u8]> for SchedMessage {
 
 #[pin_project]
 pub struct SchedTracker {
+    links: Vec<Link>,
     #[pin]
     skel: SchedSkel<'static>,
     ringbuf: RingBuffer<'static>,
@@ -202,15 +209,44 @@ pub struct SchedTracker {
 }
 
 impl SchedTracker {
-    pub fn new(result_file: File, cores: CoreList) -> Result<Pin<Box<Self>>> {
+    pub fn new(result_file: File, cores: CoreList, with_softirq: bool) -> Result<Pin<Box<Self>>> {
         let skel_builder = SchedSkelBuilder::default();
         let mut open_object: Box<MaybeUninit<OpenObject>> = Box::new(MaybeUninit::uninit());
         let open_skel: OpenSchedSkel = unsafe { transmute(skel_builder.open(&mut open_object)?) };
 
         open_skel.maps.rodata_data.core_bitmap = cores.to_bitmap()?;
 
-        let mut skel = open_skel.load()?;
-        skel.attach()?;
+        let skel = open_skel.load()?;
+
+        let mut links = vec![];
+        links.push(
+            skel.progs
+                .handle_sched_switch
+                .attach_tracepoint("sched", "sched_switch")?,
+        );
+        links.push(
+            skel.progs
+                .handle_sched_exec
+                .attach_tracepoint("sched", "sched_process_exec")?,
+        );
+        links.push(
+            skel.progs
+                .handle_sched_exit
+                .attach_tracepoint("sched", "sched_process_exit")?,
+        );
+
+        if with_softirq {
+            links.push(
+                skel.progs
+                    .handle_softirq_entry
+                    .attach_tracepoint("irq", "softirq_entry")?,
+            );
+            links.push(
+                skel.progs
+                    .handle_softirq_exit
+                    .attach_tracepoint("irq", "softirq_exit")?,
+            );
+        }
 
         let mut writer: RecordWriter<'_, SchedMessage, File> = RecordWriter::new(result_file)?;
 
@@ -231,6 +267,7 @@ impl SchedTracker {
             open_object,
             skel,
             ringbuf,
+            links,
         }))
     }
 }

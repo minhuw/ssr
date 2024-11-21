@@ -4,13 +4,6 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
-struct {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 32 * 1024 * 1024);
-} events SEC(".maps");
-
-const volatile u64 core_bitmap = 0;
-
 enum {
     SCHED_SWITCH = 1,
     SCHED_EXEC = 2,
@@ -29,12 +22,13 @@ struct sched_message_t {
     u32 cpu_id;
 };
 
+
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 10240);
-    __type(key, pid_t);
-    __type(value, char[TASK_COMM_LEN]);
-} task_comms SEC(".maps");
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 32 * 1024 * 1024);
+} events SEC(".maps");
+
+const volatile u64 core_bitmap = 0;
 
 static inline bool is_current_core_traced(void)
 {
@@ -76,7 +70,6 @@ int handle_sched_exec(struct trace_event_raw_sched_process_exec *ctx)
     if (!is_current_core_traced()) {
         return 0;
     }
-
 
     e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e) {

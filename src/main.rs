@@ -58,6 +58,9 @@ struct Args {
 
     #[arg(long, default_value = "")]
     cores_file: String,
+
+    #[arg(long, default_value = "false")]
+    with_softirq: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -100,6 +103,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 })?,
                 args.cores,
+                args.with_softirq,
             )?),
         );
     }
