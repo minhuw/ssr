@@ -56,9 +56,9 @@ impl TryFrom<i32> for EventType {
         match event_type {
             1 => Ok(EventType::Packet),
             2 => Ok(EventType::PacketDone),
-            3 => Ok(EventType::AckSent),
-            4 => Ok(EventType::AppRecv),
-            5 => Ok(EventType::AppRecvDone),
+            3 => Ok(EventType::AppRecv),
+            4 => Ok(EventType::AppRecvDone),
+            5 => Ok(EventType::AckSent),
             6 => Ok(EventType::PacketQueued),
             _ => Err(anyhow::anyhow!("Unknown event type")),
         }
